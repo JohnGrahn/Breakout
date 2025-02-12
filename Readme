@@ -1,0 +1,19 @@
+# Create a directory for external libraries (outside your Breakout project)
+mkdir ~/Development/libs
+cd ~/Development/libs
+
+# Clone and build raylib here
+git clone https://github.com/raysan5/raylib.git
+cd raylib/src
+
+# Build raylib for Emscripten
+emcc -c rcore.c -Os -Wall -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2
+emcc -c rshapes.c -Os -Wall -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2
+emcc -c rtextures.c -Os -Wall -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2
+emcc -c rtext.c -Os -Wall -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2
+emcc -c rmodels.c -Os -Wall -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2
+emcc -c raudio.c -Os -Wall -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2
+emcc -c utils.c -Os -Wall -DPLATFORM_WEB
+
+# Create the library
+emar rcs libraylib.a rcore.o rshapes.o rtextures.o rtext.o rmodels.o raudio.o utils.o

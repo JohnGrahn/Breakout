@@ -1,0 +1,57 @@
+# Temporary build directories
+out/
+cmake-build-*/
+
+# CMake temporary files (but not in build/)
+/CMakeCache.txt
+/CMakeFiles/
+/cmake_install.cmake
+/Makefile
+
+# Compiled Object files
+*.o
+*.obj
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.a
+*.lib
+
+# Executables (native)
+*.exe
+*.out
+*.app
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Keep vendor files
+!vendor/raylib-emscripten/lib/*.a
+!vendor/raylib-emscripten/include/
+
+# Keep build directory for WebAssembly deployment
+!build/
+build/*
+!build/*.wasm
+!build/*.js
+!build/*.html
+!build/*.data
+!build/CMakeCache.txt
+!build/cmake_install.cmake
+!build/Makefile 
