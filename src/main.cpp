@@ -10,15 +10,12 @@ int main() {
     // Set target FPS
     SetTargetFPS(60);
 
+    // Create game instance
+    Game game;
+
     // Main game loop
     while (!WindowShouldClose()) {
-        // Update
-        
-        // Draw
-        BeginDrawing();
-        ClearBackground(BLACK);
-        
-        EndDrawing();
+        game.run();
     }
 
     // De-initialization

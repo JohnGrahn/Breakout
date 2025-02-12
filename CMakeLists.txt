@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.13)
 project(Breakout)
 
+# Enable compile commands generation for IDE support
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Ensure we're using Emscripten
 if (NOT EMSCRIPTEN)
     message(FATAL_ERROR "This CMake file is designed to be used with Emscripten only")
@@ -19,6 +22,7 @@ set(RAYLIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vendor/raylib-emscripten")
 # Add source files
 set(SOURCES
     src/main.cpp
+    src/game.cpp
 )
 
 # Add header files
@@ -65,4 +69,12 @@ string(JOIN " " EMSCRIPTEN_LINK_FLAGS ${EMSCRIPTEN_FLAGS} ${RAYLIB_FLAGS})
 set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS ${EMSCRIPTEN_LINK_FLAGS})
 
 # Link raylib (using the vendor library)
-target_link_libraries(${PROJECT_NAME} PRIVATE ${RAYLIB_PATH}/lib/libraylib.a) 
+target_link_libraries(${PROJECT_NAME} PRIVATE ${RAYLIB_PATH}/lib/libraylib.a)
+
+# Copy web assets to build directory
+add_custom_command(
+    TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+    ${CMAKE_SOURCE_DIR}/web/index.html
+    ${CMAKE_BINARY_DIR}/index.html
+) 
