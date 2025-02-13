@@ -1,12 +1,13 @@
 # Temporary build directories
+build/
 out/
 cmake-build-*/
 
-# CMake temporary files (but not in build/)
-/CMakeCache.txt
-/CMakeFiles/
-/cmake_install.cmake
-/Makefile
+# CMake temporary files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
 
 # Compiled Object files
 *.o
@@ -26,6 +27,11 @@ cmake-build-*/
 *.out
 *.app
 
+# WebAssembly output
+*.wasm
+*.js
+*.data
+
 # IDE specific files
 .vscode/
 .idea/
@@ -43,15 +49,4 @@ Thumbs.db
 
 # Keep vendor files
 !vendor/raylib-emscripten/lib/*.a
-!vendor/raylib-emscripten/include/
-
-# Keep build directory for WebAssembly deployment
-!build/
-build/*
-!build/*.wasm
-!build/*.js
-!build/*.html
-!build/*.data
-!build/CMakeCache.txt
-!build/cmake_install.cmake
-!build/Makefile 
+!vendor/raylib-emscripten/include/ 
