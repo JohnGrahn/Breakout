@@ -27,22 +27,34 @@ RUN echo 'server { \
     server_name localhost; \
     root /app/build; \
     index index.html; \
+    \
     location / { \
-        try_files $uri $uri/ /index.html; \
+        include /etc/nginx/mime.types; \
+        default_type application/octet-stream; \
+        \
         types { \
+            text/html html htm; \
             application/wasm wasm; \
             application/javascript js; \
+            text/css css; \
         } \
+        \
+        try_files $uri $uri/ /index.html; \
     } \
+    \
     location ~ \.(wasm|js|data)$ { \
+        include /etc/nginx/mime.types; \
         add_header "Access-Control-Allow-Origin" "*"; \
         add_header "Access-Control-Allow-Methods" "GET, OPTIONS"; \
-        add_header "Content-Type" $content_type; \
     } \
 }' > /etc/nginx/conf.d/default.conf
 
 # Remove default nginx configuration
 RUN rm -f /etc/nginx/sites-enabled/default
+
+# Create nginx cache directory
+RUN mkdir -p /var/cache/nginx && \
+    chown -R nginx:nginx /var/cache/nginx
 
 # Expose port 80
 EXPOSE 80
