@@ -55,7 +55,7 @@ void Game::Ball::update(float deltaTime) {
 }
 
 void Game::Ball::draw() {
-    DrawCircle(static_cast<int>(x), static_cast<int>(y), radius, RED);
+    DrawCircle(static_cast<int>(x), static_cast<int>(y), radius, WHITE);
 }
 
 Vector2 Game::Ball::getPosition() const {
@@ -87,7 +87,7 @@ void Game::Brick::draw() {
     if (alive) {
         DrawRectangle(static_cast<int>(x), static_cast<int>(y), 
                      static_cast<int>(width), static_cast<int>(height), 
-                     GREEN);  // Using GREEN color for bricks
+                     color);  // Use the brick's color
     }
 }
 
@@ -101,6 +101,10 @@ bool Game::Brick::isAlive() const {
 
 void Game::Brick::destroy() {
     alive = false;
+}
+
+void Game::Brick::setColor(Color c) {
+    color = c;
 }
 
 // Game implementation
@@ -133,26 +137,40 @@ void Game::reset() {
     ball = std::make_unique<Ball>(ballX, ballY, ballRadius, ballSpeedX, ballSpeedY);
 
     // Initialize brick grid
-    const int rows = 5;
-    const int cols = 10;
-    const float brickWidth = 70.0f;
-    const float brickHeight = 30.0f;
-    const float padding = 5.0f;  // Space between bricks
-    const float offsetX = (GetScreenWidth() - (cols * (brickWidth + padding) - padding)) / 2.0f;
-    const float offsetY = 50.0f;  // Start 50 pixels from the top
+    const int rows = 8;  // 8 rows to match the image
+    const int cols = 14; // 14 columns to match the image
+    const float padding = 2.0f;  // Reduced padding between bricks
+    
+    // Calculate brick dimensions to fit screen width
+    const float brickWidth = (GetScreenWidth() - (cols + 1) * padding) / cols;
+    const float brickHeight = 20.0f;  // Fixed height for bricks
+    
+    // Define colors for each row (from bottom to top)
+    Color rowColors[8] = {
+        GREEN,      // Row 1 (bottom)
+        GREEN,      // Row 2
+        YELLOW,     // Row 3
+        YELLOW,     // Row 4
+        ORANGE,     // Row 5
+        ORANGE,     // Row 6
+        RED,        // Row 7
+        RED         // Row 8 (top)
+    };
 
     // Resize the bricks vector to hold all rows
     bricks.resize(rows);
 
     // Create the grid of bricks
+    const float startY = 50.0f;  // Start position from top
+    
     for (int row = 0; row < rows; row++) {
-        // Resize this row to hold all columns
         bricks[row].resize(cols);
+        float currentY = startY + row * (brickHeight + padding);
 
         for (int col = 0; col < cols; col++) {
-            float brickX = offsetX + col * (brickWidth + padding);
-            float brickY = offsetY + row * (brickHeight + padding);
-            bricks[row][col] = std::make_unique<Brick>(brickX, brickY, brickWidth, brickHeight, true);
+            float currentX = padding + col * (brickWidth + padding);
+            bricks[row][col] = std::make_unique<Brick>(currentX, currentY, brickWidth, brickHeight, true);
+            bricks[row][col]->setColor(rowColors[row]);
         }
     }
 }
@@ -263,7 +281,7 @@ void Game::update(float deltaTime) {
 
 void Game::draw() {
     BeginDrawing();
-    ClearBackground(RAYWHITE);
+    ClearBackground(BLACK);
     
     // Draw all alive bricks
     for (const auto& row : bricks) {
@@ -277,8 +295,8 @@ void Game::draw() {
     paddle->draw();
     ball->draw();
 
-    // Draw score
-    DrawText(TextFormat("Score: %d", score), 10, 10, 20, BLACK);
+    // Draw score in white
+    DrawText(TextFormat("Score: %d", score), 10, 10, 20, WHITE);
 
     // Draw game over message
     if (gameOver) {

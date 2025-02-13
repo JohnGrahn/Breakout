@@ -48,6 +48,7 @@ public:
         Rectangle getRect() const;
         bool isAlive() const;
         void destroy();
+        void setColor(Color c);
 
     private:
         float x;
@@ -55,6 +56,7 @@ public:
         float width;
         float height;
         bool alive;
+        Color color;
     };
 
     Game();
