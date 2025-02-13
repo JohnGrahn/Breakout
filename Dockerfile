@@ -1,51 +1,32 @@
-# Stage 1: Build the WebAssembly application
-FROM --platform=linux/arm64 debian:bullseye-slim AS builder
+# Use ARM64 Emscripten image
+FROM emscripten/emsdk:4.0.3-arm64
 
-# Install build dependencies
+# Install additional dependencies
 RUN apt-get update && apt-get install -y \
-    git \
     cmake \
-    python3 \
-    nodejs \
-    npm \
-    wget \
-    xz-utils \
+    nginx \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Emscripten
-WORKDIR /opt
-RUN git clone https://github.com/emscripten-core/emsdk.git
-WORKDIR /opt/emsdk
-RUN ./emsdk install 3.1.45 && \
-    ./emsdk activate 3.1.45
-
-# Set up environment variables
-ENV PATH="/opt/emsdk:/opt/emsdk/upstream/emscripten:/opt/emsdk/node/16.20.0_64bit/bin:${PATH}"
-
-# Set working directory for the application
+# Set working directory
 WORKDIR /app
 
 # Copy the project files
 COPY . .
 
-# Create build directory and build the project
-RUN mkdir -p build && \
-    cd build && \
+# Create build directory
+RUN mkdir -p build
+
+# Build the project
+RUN cd build && \
     emcmake cmake .. && \
     cmake --build .
-
-# Stage 2: Create the runtime image
-FROM --platform=linux/arm64 nginx:alpine
-
-# Copy the built files from the builder stage
-COPY --from=builder /app/build /usr/share/nginx/html
 
 # Configure nginx
 RUN echo 'server { \
     listen 80; \
     server_name localhost; \
     location / { \
-        root /usr/share/nginx/html; \
+        root /app/build; \
         index index.html; \
         types { \
             application/wasm wasm; \
