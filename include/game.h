@@ -60,6 +60,7 @@ public:
     Game();
     ~Game();
     void run();
+    void reset();
 
 private:
     void update(float deltaTime);
@@ -71,6 +72,9 @@ private:
     std::unique_ptr<Paddle> paddle;
     std::unique_ptr<Ball> ball;
     std::vector<std::vector<std::unique_ptr<Brick>>> bricks;
+    bool gameOver;
+    bool won;
+    int score;
 };
 
 #endif // GAME_H 

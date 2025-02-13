@@ -104,7 +104,15 @@ void Game::Brick::destroy() {
 }
 
 // Game implementation
-Game::Game() {
+Game::Game() : gameOver(false), won(false), score(0) {
+    reset();
+}
+
+void Game::reset() {
+    gameOver = false;
+    won = false;
+    score = 0;
+
     // Initialize paddle with reasonable values:
     // Position it at the bottom of the screen, centered horizontally
     const float paddleWidth = 100.0f;
@@ -208,6 +216,7 @@ void Game::checkBrickCollisions() {
             if (brick && brick->isAlive()) {
                 if (checkBallBrickCollision(brick->getRect())) {
                     brick->destroy();
+                    score += 100;  // Increment score when brick is destroyed
                     // Only handle one collision per frame to prevent multiple bounces
                     return;
                 }
@@ -217,11 +226,39 @@ void Game::checkBrickCollisions() {
 }
 
 void Game::update(float deltaTime) {
+    if (gameOver || won) {
+        if (IsKeyPressed(KEY_R)) {
+            reset();
+        }
+        return;
+    }
+
     paddle->update(deltaTime);
     ball->update(deltaTime);
     
+    // Check if ball goes below paddle
+    if (ball->getPosition().y - ball->getRadius() > GetScreenHeight()) {
+        gameOver = true;
+        return;
+    }
+
     checkPaddleCollision();
     checkBrickCollisions();
+
+    // Check win condition
+    bool allBricksDestroyed = true;
+    for (const auto& row : bricks) {
+        for (const auto& brick : row) {
+            if (brick && brick->isAlive()) {
+                allBricksDestroyed = false;
+                break;
+            }
+        }
+        if (!allBricksDestroyed) break;
+    }
+    if (allBricksDestroyed) {
+        won = true;
+    }
 }
 
 void Game::draw() {
@@ -239,6 +276,31 @@ void Game::draw() {
     
     paddle->draw();
     ball->draw();
+
+    // Draw score
+    DrawText(TextFormat("Score: %d", score), 10, 10, 20, BLACK);
+
+    // Draw game over message
+    if (gameOver) {
+        const char* gameOverText = "Game Over! Press R to restart";
+        int fontSize = 40;
+        Vector2 textSize = MeasureTextEx(GetFontDefault(), gameOverText, fontSize, 1);
+        DrawText(gameOverText, 
+                (GetScreenWidth() - textSize.x) / 2,
+                (GetScreenHeight() - textSize.y) / 2,
+                fontSize, RED);
+    }
+
+    // Draw win message
+    if (won) {
+        const char* winText = "You Win! Press R to restart";
+        int fontSize = 40;
+        Vector2 textSize = MeasureTextEx(GetFontDefault(), winText, fontSize, 1);
+        DrawText(winText,
+                (GetScreenWidth() - textSize.x) / 2,
+                (GetScreenHeight() - textSize.y) / 2,
+                fontSize, GREEN);
+    }
     
     EndDrawing();
 }

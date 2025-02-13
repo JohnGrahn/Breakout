@@ -17,3 +17,9 @@ emcc -c utils.c -Os -Wall -DPLATFORM_WEB
 
 # Create the library
 emar rcs libraylib.a rcore.o rshapes.o rtextures.o rtext.o rmodels.o raudio.o utils.o
+
+
+
+cd build && make clean && emmake make
+
+rm -rf build && mkdir build && cd build && emcmake cmake .. && emmake make
