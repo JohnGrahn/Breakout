@@ -23,3 +23,5 @@ emar rcs libraylib.a rcore.o rshapes.o rtextures.o rtext.o rmodels.o raudio.o ut
 cd build && make clean && emmake make
 
 rm -rf build && mkdir build && cd build && emcmake cmake .. && emmake make
+
+python3 -m http.server 8000

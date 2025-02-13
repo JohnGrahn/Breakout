@@ -1,4 +1,8 @@
 #include "../include/game.h"
+#include <cstdlib>  // For abs function
+
+// Game destructor implementation
+Game::~Game() = default;
 
 // Paddle implementation
 Game::Paddle::Paddle(float x, float y, float width, float height, float speed)
@@ -29,6 +33,10 @@ void Game::Paddle::draw() {
 
 Rectangle Game::Paddle::getRect() const {
     return Rectangle{x, y, width, height};
+}
+
+void Game::Paddle::setX(float newX) {
+    x = newX;
 }
 
 // Ball implementation
@@ -107,75 +115,171 @@ void Game::Brick::setColor(Color c) {
     color = c;
 }
 
-// Game implementation
-Game::Game() : gameOver(false), won(false), score(0) {
-    reset();
-}
+// Add this new method before Game implementation
+void Game::initializeBricks() {
+    const int rows = 8;
+    const int cols = 14;
+    const float brickSpacing = 2.0f;
+    const float totalSpacing = brickSpacing * (cols + 1);
+    const float brickWidth = (GetScreenWidth() - totalSpacing) / cols;
+    const float brickHeight = 20.0f;
 
-void Game::reset() {
-    gameOver = false;
-    won = false;
-    score = 0;
-
-    // Initialize paddle with reasonable values:
-    // Position it at the bottom of the screen, centered horizontally
-    const float paddleWidth = 100.0f;
-    const float paddleHeight = 20.0f;
-    const float paddleSpeed = 500.0f;  // pixels per second
-    const float paddleY = GetScreenHeight() - 40.0f;  // 40 pixels from bottom
-    const float paddleX = (GetScreenWidth() - paddleWidth) / 2.0f;
-
-    paddle = std::make_unique<Paddle>(paddleX, paddleY, paddleWidth, paddleHeight, paddleSpeed);
-
-    // Initialize ball in the middle of the screen with reasonable values
-    const float ballRadius = 10.0f;
-    const float ballSpeedX = 300.0f;  // pixels per second
-    const float ballSpeedY = -300.0f;  // negative means moving up
-    const float ballX = GetScreenWidth() / 2.0f;
-    const float ballY = GetScreenHeight() / 2.0f;
-
-    ball = std::make_unique<Ball>(ballX, ballY, ballRadius, ballSpeedX, ballSpeedY);
-
-    // Initialize brick grid
-    const int rows = 8;  // 8 rows to match the image
-    const int cols = 14; // 14 columns to match the image
-    const float padding = 2.0f;  // Reduced padding between bricks
-    
-    // Calculate brick dimensions to fit screen width
-    const float brickWidth = (GetScreenWidth() - (cols + 1) * padding) / cols;
-    const float brickHeight = 20.0f;  // Fixed height for bricks
-    
-    // Define colors for each row (from bottom to top)
-    Color rowColors[8] = {
-        GREEN,      // Row 1 (bottom)
-        GREEN,      // Row 2
-        YELLOW,     // Row 3
-        YELLOW,     // Row 4
-        ORANGE,     // Row 5
-        ORANGE,     // Row 6
-        RED,        // Row 7
-        RED         // Row 8 (top)
-    };
-
-    // Resize the bricks vector to hold all rows
+    bricks.clear();
     bricks.resize(rows);
-
-    // Create the grid of bricks
-    const float startY = 50.0f;  // Start position from top
-    
-    for (int row = 0; row < rows; row++) {
-        bricks[row].resize(cols);
-        float currentY = startY + row * (brickHeight + padding);
-
-        for (int col = 0; col < cols; col++) {
-            float currentX = padding + col * (brickWidth + padding);
-            bricks[row][col] = std::make_unique<Brick>(currentX, currentY, brickWidth, brickHeight, true);
-            bricks[row][col]->setColor(rowColors[row]);
+    for (int i = 0; i < rows; i++) {
+        bricks[i].reserve(cols);
+        for (int j = 0; j < cols; j++) {
+            float x = brickSpacing + j * (brickWidth + brickSpacing);
+            float y = brickSpacing + i * (brickHeight + brickSpacing) + 50.0f;
+            auto brick = std::make_unique<Brick>(x, y, brickWidth, brickHeight, true);
+            
+            // Set different colors for each pair of rows (from bottom to top)
+            Color rowColors[8] = {
+                GREEN,      // Row 1 (bottom)
+                GREEN,      // Row 2
+                YELLOW,     // Row 3
+                YELLOW,     // Row 4
+                ORANGE,     // Row 5
+                ORANGE,     // Row 6
+                RED,        // Row 7
+                RED         // Row 8 (top)
+            };
+            brick->setColor(rowColors[i]);
+            
+            bricks[i].push_back(std::move(brick));
         }
     }
 }
 
-Game::~Game() = default;
+// Game implementation
+Game::Game() {
+    const float paddleWidth = 100.0f;
+    const float paddleHeight = 20.0f;
+    const float paddleY = GetScreenHeight() - 40.0f;
+    const float ballRadius = 10.0f;
+
+    paddle = std::make_unique<Paddle>(
+        (GetScreenWidth() - paddleWidth) / 2,
+        paddleY,
+        paddleWidth,
+        paddleHeight,
+        500.0f
+    );
+
+    ball = std::make_unique<Ball>(
+        GetScreenWidth() / 2,
+        paddleY - ballRadius,
+        ballRadius,
+        300.0f,
+        -300.0f
+    );
+
+    initializeBricks();
+
+    gameOver = false;
+    won = false;
+    score = 0;
+    lives = INITIAL_LIVES;
+}
+
+void Game::resetBallAndPaddle() {
+    // Reset paddle position
+    paddle->setX((GetScreenWidth() - paddle->getRect().width) / 2);
+    
+    // Reset ball position
+    ball->setPosition(
+        GetScreenWidth() / 2,
+        paddle->getRect().y - ball->getRadius()
+    );
+}
+
+void Game::update(float deltaTime) {
+    if (gameOver || won) {
+        if (IsKeyPressed(KEY_SPACE)) {
+            reset();
+        }
+        return;
+    }
+
+    paddle->update(deltaTime);
+    ball->update(deltaTime);
+
+    checkPaddleCollision();
+    checkBrickCollisions();
+
+    // Check if ball went below paddle
+    if (ball->getPosition().y + ball->getRadius() > GetScreenHeight()) {
+        lives--;
+        if (lives <= 0) {
+            gameOver = true;
+        } else {
+            resetBallAndPaddle();
+        }
+    }
+
+    // Check win condition
+    bool allBricksDestroyed = true;
+    for (const auto& row : bricks) {
+        for (const auto& brick : row) {
+            if (brick->isAlive()) {
+                allBricksDestroyed = false;
+                break;
+            }
+        }
+        if (!allBricksDestroyed) break;
+    }
+    if (allBricksDestroyed) {
+        won = true;
+    }
+}
+
+void Game::draw() {
+    BeginDrawing();
+    ClearBackground(BLACK);
+
+    // Draw game elements
+    paddle->draw();
+    ball->draw();
+    
+    for (const auto& row : bricks) {
+        for (const auto& brick : row) {
+            brick->draw();
+        }
+    }
+
+    // Draw score
+    DrawText(TextFormat("Score: %d", score), 10, 10, 20, WHITE);
+    
+    // Draw lives
+    DrawText(TextFormat("Lives: %d", lives), GetScreenWidth() - 100, 10, 20, WHITE);
+
+    // Draw game over or win message
+    if (gameOver) {
+        const char* gameOverText = "Game Over! Press SPACE to restart";
+        int textWidth = MeasureText(gameOverText, 40);
+        DrawText(gameOverText, (GetScreenWidth() - textWidth) / 2, GetScreenHeight() / 2, 40, RED);
+    } else if (won) {
+        const char* winText = "You Won! Press SPACE to restart";
+        int textWidth = MeasureText(winText, 40);
+        DrawText(winText, (GetScreenWidth() - textWidth) / 2, GetScreenHeight() / 2, 40, GREEN);
+    }
+
+    EndDrawing();
+}
+
+void Game::reset() {
+    // Reset game state
+    gameOver = false;
+    won = false;
+    score = 0;
+    lives = INITIAL_LIVES;
+    
+    // Reset paddle and ball positions
+    resetBallAndPaddle();
+
+    // Reinitialize all bricks
+    initializeBricks();
+}
 
 void Game::checkPaddleCollision() {
     Vector2 ballPos = ball->getPosition();
@@ -215,7 +319,7 @@ bool Game::checkBallBrickCollision(const Rectangle& brickRect) {
         float dy = ballPos.y - brickCenterY;
         
         // Determine if collision is more horizontal or vertical
-        if (abs(dx) * brickRect.height > abs(dy) * brickRect.width) {
+        if (std::abs(dx) * brickRect.height > std::abs(dy) * brickRect.width) {
             // Horizontal collision (sides)
             ball->reverseX();
         } else {
@@ -241,86 +345,6 @@ void Game::checkBrickCollisions() {
             }
         }
     }
-}
-
-void Game::update(float deltaTime) {
-    if (gameOver || won) {
-        if (IsKeyPressed(KEY_R)) {
-            reset();
-        }
-        return;
-    }
-
-    paddle->update(deltaTime);
-    ball->update(deltaTime);
-    
-    // Check if ball goes below paddle
-    if (ball->getPosition().y - ball->getRadius() > GetScreenHeight()) {
-        gameOver = true;
-        return;
-    }
-
-    checkPaddleCollision();
-    checkBrickCollisions();
-
-    // Check win condition
-    bool allBricksDestroyed = true;
-    for (const auto& row : bricks) {
-        for (const auto& brick : row) {
-            if (brick && brick->isAlive()) {
-                allBricksDestroyed = false;
-                break;
-            }
-        }
-        if (!allBricksDestroyed) break;
-    }
-    if (allBricksDestroyed) {
-        won = true;
-    }
-}
-
-void Game::draw() {
-    BeginDrawing();
-    ClearBackground(BLACK);
-    
-    // Draw all alive bricks
-    for (const auto& row : bricks) {
-        for (const auto& brick : row) {
-            if (brick && brick->isAlive()) {
-                brick->draw();
-            }
-        }
-    }
-    
-    paddle->draw();
-    ball->draw();
-
-    // Draw score in white
-    DrawText(TextFormat("Score: %d", score), 10, 10, 20, WHITE);
-
-    // Draw game over message
-    if (gameOver) {
-        const char* gameOverText = "Game Over! Press R to restart";
-        int fontSize = 40;
-        Vector2 textSize = MeasureTextEx(GetFontDefault(), gameOverText, fontSize, 1);
-        DrawText(gameOverText, 
-                (GetScreenWidth() - textSize.x) / 2,
-                (GetScreenHeight() - textSize.y) / 2,
-                fontSize, RED);
-    }
-
-    // Draw win message
-    if (won) {
-        const char* winText = "You Win! Press R to restart";
-        int fontSize = 40;
-        Vector2 textSize = MeasureTextEx(GetFontDefault(), winText, fontSize, 1);
-        DrawText(winText,
-                (GetScreenWidth() - textSize.x) / 2,
-                (GetScreenHeight() - textSize.y) / 2,
-                fontSize, GREEN);
-    }
-    
-    EndDrawing();
 }
 
 void Game::run() {

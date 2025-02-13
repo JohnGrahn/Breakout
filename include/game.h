@@ -13,6 +13,7 @@ public:
         void update(float deltaTime);
         void draw();
         Rectangle getRect() const;
+        void setX(float newX);
 
     private:
         float x;
@@ -70,6 +71,8 @@ private:
     void checkPaddleCollision();
     void checkBrickCollisions();
     bool checkBallBrickCollision(const Rectangle& brickRect); // Helper to determine collision side
+    void resetBallAndPaddle();  // New method to reset positions
+    void initializeBricks();    // New method to initialize bricks
 
     std::unique_ptr<Paddle> paddle;
     std::unique_ptr<Ball> ball;
@@ -77,6 +80,8 @@ private:
     bool gameOver;
     bool won;
     int score;
+    int lives;  // Number of lives remaining
+    static const int INITIAL_LIVES = 3;  // Starting number of lives
 };
 
 #endif // GAME_H 
