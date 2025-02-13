@@ -25,15 +25,24 @@ RUN cd build && \
 RUN echo 'server { \
     listen 80; \
     server_name localhost; \
+    root /app/build; \
+    index index.html; \
     location / { \
-        root /app/build; \
-        index index.html; \
+        try_files $uri $uri/ /index.html; \
         types { \
             application/wasm wasm; \
             application/javascript js; \
         } \
     } \
+    location ~ \.(wasm|js|data)$ { \
+        add_header "Access-Control-Allow-Origin" "*"; \
+        add_header "Access-Control-Allow-Methods" "GET, OPTIONS"; \
+        add_header "Content-Type" $content_type; \
+    } \
 }' > /etc/nginx/conf.d/default.conf
+
+# Remove default nginx configuration
+RUN rm -f /etc/nginx/sites-enabled/default
 
 # Expose port 80
 EXPOSE 80
