@@ -66,6 +66,14 @@ public:
     void reset();
 
 private:
+    enum class GameState {
+        START_SCREEN,
+        PLAYING,
+        PAUSED,
+        GAME_OVER,
+        WON
+    };
+
     void update(float deltaTime);
     void draw();
     void checkPaddleCollision();
@@ -77,6 +85,7 @@ private:
     std::unique_ptr<Paddle> paddle;
     std::unique_ptr<Ball> ball;
     std::vector<std::vector<std::unique_ptr<Brick>>> bricks;
+    GameState state;
     bool gameOver;
     bool won;
     int score;

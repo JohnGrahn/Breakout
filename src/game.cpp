@@ -176,6 +176,7 @@ Game::Game() {
 
     initializeBricks();
 
+    state = GameState::START_SCREEN;
     gameOver = false;
     won = false;
     score = 0;
@@ -194,42 +195,55 @@ void Game::resetBallAndPaddle() {
 }
 
 void Game::update(float deltaTime) {
-    if (gameOver || won) {
-        if (IsKeyPressed(KEY_SPACE)) {
+    // Handle state transitions
+    if (IsKeyPressed(KEY_SPACE)) {
+        if (state == GameState::START_SCREEN) {
+            state = GameState::PLAYING;
+        }
+        else if (state == GameState::GAME_OVER || state == GameState::WON) {
             reset();
-        }
-        return;
-    }
-
-    paddle->update(deltaTime);
-    ball->update(deltaTime);
-
-    checkPaddleCollision();
-    checkBrickCollisions();
-
-    // Check if ball went below paddle
-    if (ball->getPosition().y + ball->getRadius() > GetScreenHeight()) {
-        lives--;
-        if (lives <= 0) {
-            gameOver = true;
-        } else {
-            resetBallAndPaddle();
+            state = GameState::PLAYING;
         }
     }
 
-    // Check win condition
-    bool allBricksDestroyed = true;
-    for (const auto& row : bricks) {
-        for (const auto& brick : row) {
-            if (brick->isAlive()) {
-                allBricksDestroyed = false;
-                break;
+    if (IsKeyPressed(KEY_P) && (state == GameState::PLAYING || state == GameState::PAUSED)) {
+        state = (state == GameState::PLAYING) ? GameState::PAUSED : GameState::PLAYING;
+    }
+
+    // Only update game logic if in PLAYING state
+    if (state == GameState::PLAYING) {
+        paddle->update(deltaTime);
+        ball->update(deltaTime);
+
+        checkPaddleCollision();
+        checkBrickCollisions();
+
+        // Check if ball went below paddle
+        if (ball->getPosition().y + ball->getRadius() > GetScreenHeight()) {
+            lives--;
+            if (lives <= 0) {
+                state = GameState::GAME_OVER;
+                gameOver = true;
+            } else {
+                resetBallAndPaddle();
             }
         }
-        if (!allBricksDestroyed) break;
-    }
-    if (allBricksDestroyed) {
-        won = true;
+
+        // Check win condition
+        bool allBricksDestroyed = true;
+        for (const auto& row : bricks) {
+            for (const auto& brick : row) {
+                if (brick->isAlive()) {
+                    allBricksDestroyed = false;
+                    break;
+                }
+            }
+            if (!allBricksDestroyed) break;
+        }
+        if (allBricksDestroyed) {
+            state = GameState::WON;
+            won = true;
+        }
     }
 }
 
@@ -237,31 +251,98 @@ void Game::draw() {
     BeginDrawing();
     ClearBackground(BLACK);
 
-    // Draw game elements
-    paddle->draw();
-    ball->draw();
-    
-    for (const auto& row : bricks) {
-        for (const auto& brick : row) {
-            brick->draw();
+    switch (state) {
+        case GameState::START_SCREEN: {
+            const char* title = "BREAKOUT";
+            const char* instructions = "Press SPACE to Start";
+            
+            int titleFontSize = 60;
+            int instructionsFontSize = 30;
+            
+            int titleWidth = MeasureText(title, titleFontSize);
+            int instructionsWidth = MeasureText(instructions, instructionsFontSize);
+            
+            // Draw title
+            DrawText(title, 
+                    (GetScreenWidth() - titleWidth) / 2,
+                    GetScreenHeight() / 3,
+                    titleFontSize, WHITE);
+            
+            // Draw instructions
+            DrawText(instructions,
+                    (GetScreenWidth() - instructionsWidth) / 2,
+                    GetScreenHeight() / 2,
+                    instructionsFontSize, GRAY);
+            break;
         }
-    }
+        
+        case GameState::PLAYING:
+        case GameState::PAUSED: {
+            // Draw game elements
+            paddle->draw();
+            ball->draw();
+            
+            for (const auto& row : bricks) {
+                for (const auto& brick : row) {
+                    brick->draw();
+                }
+            }
 
-    // Draw score
-    DrawText(TextFormat("Score: %d", score), 10, 10, 20, WHITE);
-    
-    // Draw lives
-    DrawText(TextFormat("Lives: %d", lives), GetScreenWidth() - 100, 10, 20, WHITE);
+            // Draw score
+            DrawText(TextFormat("Score: %d", score), 10, 10, 20, WHITE);
+            
+            // Draw lives
+            DrawText(TextFormat("Lives: %d", lives), GetScreenWidth() - 100, 10, 20, WHITE);
 
-    // Draw game over or win message
-    if (gameOver) {
-        const char* gameOverText = "Game Over! Press SPACE to restart";
-        int textWidth = MeasureText(gameOverText, 40);
-        DrawText(gameOverText, (GetScreenWidth() - textWidth) / 2, GetScreenHeight() / 2, 40, RED);
-    } else if (won) {
-        const char* winText = "You Won! Press SPACE to restart";
-        int textWidth = MeasureText(winText, 40);
-        DrawText(winText, (GetScreenWidth() - textWidth) / 2, GetScreenHeight() / 2, 40, GREEN);
+            // If paused, draw pause message
+            if (state == GameState::PAUSED) {
+                const char* pausedText = "PAUSED";
+                int textWidth = MeasureText(pausedText, 40);
+                DrawText(pausedText,
+                        (GetScreenWidth() - textWidth) / 2,
+                        GetScreenHeight() / 2,
+                        40, YELLOW);
+            }
+            break;
+        }
+        
+        case GameState::GAME_OVER: {
+            // Draw game elements in background
+            paddle->draw();
+            ball->draw();
+            for (const auto& row : bricks) {
+                for (const auto& brick : row) {
+                    brick->draw();
+                }
+            }
+
+            const char* gameOverText = "Game Over! Press SPACE to restart";
+            int textWidth = MeasureText(gameOverText, 40);
+            DrawText(gameOverText,
+                    (GetScreenWidth() - textWidth) / 2,
+                    GetScreenHeight() / 2,
+                    40, RED);
+            break;
+        }
+        
+        case GameState::WON: {
+            // Draw game elements in background
+            paddle->draw();
+            ball->draw();
+            for (const auto& row : bricks) {
+                for (const auto& brick : row) {
+                    brick->draw();
+                }
+            }
+
+            const char* winText = "You Won! Press SPACE to restart";
+            int textWidth = MeasureText(winText, 40);
+            DrawText(winText,
+                    (GetScreenWidth() - textWidth) / 2,
+                    GetScreenHeight() / 2,
+                    40, GREEN);
+            break;
+        }
     }
 
     EndDrawing();
@@ -269,6 +350,7 @@ void Game::draw() {
 
 void Game::reset() {
     // Reset game state
+    state = GameState::PLAYING;
     gameOver = false;
     won = false;
     score = 0;
