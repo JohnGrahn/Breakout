@@ -1,3 +1,4 @@
+
 #include "../include/game.h"
 #include <cstdlib>  // For abs function
 
@@ -85,6 +86,22 @@ void Game::Ball::reverseX() {
 
 void Game::Ball::reverseY() {
     speedY = -speedY;
+}
+
+void Game::Ball::increaseSpeed(float increment) {
+    if (speedX > 0)
+        speedX += increment;
+    else
+        speedX -= increment;
+    if (speedY > 0)
+        speedY += increment;
+    else
+        speedY -= increment;
+}
+
+void Game::Ball::setSpeed(float newSpeedX, float newSpeedY) {
+    speedX = newSpeedX;
+    speedY = newSpeedY;
 }
 
 // Brick implementation
@@ -192,6 +209,7 @@ void Game::resetBallAndPaddle() {
         GetScreenWidth() / 2,
         paddle->getRect().y - ball->getRadius()
     );
+    ball->setSpeed(300.0f, -300.0f);
 }
 
 void Game::update(float deltaTime) {
@@ -421,6 +439,7 @@ void Game::checkBrickCollisions() {
                 if (checkBallBrickCollision(brick->getRect())) {
                     brick->destroy();
                     score += 100;  // Increment score when brick is destroyed
+                    ball->increaseSpeed(10.0f);
                     // Only handle one collision per frame to prevent multiple bounces
                     return;
                 }
@@ -432,4 +451,4 @@ void Game::checkBrickCollisions() {
 void Game::run() {
     update(GetFrameTime());
     draw();
-} 
+}

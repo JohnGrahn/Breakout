@@ -33,6 +33,8 @@ public:
         void setPosition(float x, float y);
         void reverseX();
         void reverseY();
+        void increaseSpeed(float increment);
+        void setSpeed(float newSpeedX, float newSpeedY);
 
     private:
         float x;
@@ -93,4 +95,4 @@ private:
     static const int INITIAL_LIVES = 3;  // Starting number of lives
 };
 
-#endif // GAME_H 
+#endif // GAME_H
