@@ -1,6 +1,6 @@
-
 #include "../include/game.h"
 #include <cstdlib>  // For abs function
+#include <cmath>  // For sqrt
 
 // Game destructor implementation
 Game::~Game() = default;
@@ -104,6 +104,15 @@ void Game::Ball::setSpeed(float newSpeedX, float newSpeedY) {
     speedY = newSpeedY;
 }
 
+void Game::Ball::clampSpeed(float maxSpeed) {
+    float currentSpeed = std::sqrt(speedX * speedX + speedY * speedY);
+    if (currentSpeed > maxSpeed) {
+        float scale = maxSpeed / currentSpeed;
+        speedX *= scale;
+        speedY *= scale;
+    }
+}
+
 // Brick implementation
 Game::Brick::Brick(float x, float y, float width, float height, bool isAlive)
     : x(x), y(y), width(width), height(height), alive(isAlive) {}
@@ -169,7 +178,7 @@ void Game::initializeBricks() {
 }
 
 // Game implementation
-Game::Game() {
+Game::Game() : ballSpeedTimer(0.0f) {
     const float paddleWidth = 100.0f;
     const float paddleHeight = 20.0f;
     const float paddleY = GetScreenHeight() - 40.0f;
@@ -210,10 +219,12 @@ void Game::resetBallAndPaddle() {
         paddle->getRect().y - ball->getRadius()
     );
     ball->setSpeed(300.0f, -300.0f);
+    
+    // Reset the speed increase timer
+    ballSpeedTimer = 0.0f;
 }
 
 void Game::update(float deltaTime) {
-    // Handle state transitions
     if (IsKeyPressed(KEY_SPACE)) {
         if (state == GameState::START_SCREEN) {
             state = GameState::PLAYING;
@@ -228,15 +239,21 @@ void Game::update(float deltaTime) {
         state = (state == GameState::PLAYING) ? GameState::PAUSED : GameState::PLAYING;
     }
 
-    // Only update game logic if in PLAYING state
     if (state == GameState::PLAYING) {
         paddle->update(deltaTime);
         ball->update(deltaTime);
 
+        // Increase ball speed every fixed interval (timer resets each life)
+        ballSpeedTimer += deltaTime;
+        if (ballSpeedTimer >= SPEED_INCREASE_INTERVAL) {
+            ball->increaseSpeed(BALL_SPEED_INCREMENT);
+            ball->clampSpeed(MAX_BALL_SPEED);
+            ballSpeedTimer = 0.0f;
+        }
+
         checkPaddleCollision();
         checkBrickCollisions();
 
-        // Check if ball went below paddle
         if (ball->getPosition().y + ball->getRadius() > GetScreenHeight()) {
             lives--;
             if (lives <= 0) {
@@ -247,7 +264,6 @@ void Game::update(float deltaTime) {
             }
         }
 
-        // Check win condition
         bool allBricksDestroyed = true;
         for (const auto& row : bricks) {
             for (const auto& brick : row) {
@@ -438,9 +454,7 @@ void Game::checkBrickCollisions() {
             if (brick && brick->isAlive()) {
                 if (checkBallBrickCollision(brick->getRect())) {
                     brick->destroy();
-                    score += 100;  // Increment score when brick is destroyed
-                    ball->increaseSpeed(10.0f);
-                    // Only handle one collision per frame to prevent multiple bounces
+                    score += 100;
                     return;
                 }
             }

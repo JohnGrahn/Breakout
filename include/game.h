@@ -35,6 +35,7 @@ public:
         void reverseY();
         void increaseSpeed(float increment);
         void setSpeed(float newSpeedX, float newSpeedY);
+        void clampSpeed(float maxSpeed); // new method
 
     private:
         float x;
@@ -93,6 +94,10 @@ private:
     int score;
     int lives;  // Number of lives remaining
     static const int INITIAL_LIVES = 3;  // Starting number of lives
+    float ballSpeedTimer;
+    static constexpr float SPEED_INCREASE_INTERVAL = 5.0f;  // seconds
+    static constexpr float BALL_SPEED_INCREMENT = 10.0f;
+    static constexpr float MAX_BALL_SPEED = 1000.0f;
 };
 
 #endif // GAME_H
