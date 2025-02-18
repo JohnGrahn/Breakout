@@ -19,6 +19,10 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 # Set Raylib path to vendor directory
 set(RAYLIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vendor/raylib-emscripten")
 
+# Set Emscripten paths
+set(EMSCRIPTEN_PATH "/home/jack/Development/Tools/emsdk")
+set(EMSCRIPTEN_INCLUDE_PATH "${EMSCRIPTEN_PATH}/upstream/emscripten/cache/sysroot/include")
+
 # Add source files
 set(SOURCES
     src/main.cpp
@@ -37,6 +41,7 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
 target_include_directories(${PROJECT_NAME} 
     PRIVATE include
     PRIVATE ${RAYLIB_PATH}/include
+    PRIVATE ${EMSCRIPTEN_INCLUDE_PATH}
 )
 
 # Emscripten-specific settings
@@ -46,6 +51,9 @@ set(EMSCRIPTEN_FLAGS
     "-s ASYNCIFY"
     "-s ALLOW_MEMORY_GROWTH=1"
     "-s EXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
+    "-s EXPORTED_FUNCTIONS=['_main','_setWindowSize']"
+    "-s INITIAL_MEMORY=67108864"
+    "-s ALLOW_TABLE_GROWTH"
     "-O3"
 )
 
@@ -77,4 +85,4 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy
     ${CMAKE_SOURCE_DIR}/web/index.html
     ${CMAKE_BINARY_DIR}/index.html
-) 
+)

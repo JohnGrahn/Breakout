@@ -50,3 +50,6 @@ Thumbs.db
 # Keep vendor files
 !vendor/raylib-emscripten/lib/*.a
 !vendor/raylib-emscripten/include/ 
+
+Docs Markdown files
+docs/

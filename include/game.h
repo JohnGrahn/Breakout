@@ -7,6 +7,20 @@
 
 class Game {
 public:
+    struct SpeedConfig {
+        // Base dimensions and speeds (unchanged by scaling)
+        static constexpr float BASE_WINDOW_WIDTH = 800.0f;
+        static constexpr float BASE_WINDOW_HEIGHT = 600.0f;
+        static constexpr float PADDLE_BASE_SPEED = 500.0f;
+        static constexpr float BALL_BASE_SPEED = 300.0f;
+        static constexpr float BALL_SPEED_INCREMENT = 10.0f;
+
+        // Get single scaling factor
+        static float getSpeedScale() {
+            return BASE_WINDOW_WIDTH / static_cast<float>(GetScreenWidth());
+        }
+    };
+
     class Paddle {
     public:
         Paddle(float x, float y, float width, float height, float speed);
@@ -14,13 +28,15 @@ public:
         void draw();
         Rectangle getRect() const;
         void setX(float newX);
+        void clampToScreen();
+        float getBaseSpeed() const { return baseSpeed; }
 
     private:
         float x;
         float y;
         float width;
         float height;
-        float speed;
+        float baseSpeed;  // Changed from speed to baseSpeed
     };
 
     class Ball {
@@ -35,14 +51,17 @@ public:
         void reverseY();
         void increaseSpeed(float increment);
         void setSpeed(float newSpeedX, float newSpeedY);
-        void clampSpeed(float maxSpeed); // new method
+        void clampSpeed(float maxSpeed);
+        void clampToScreen();
+        float getSpeedX() const { return baseSpeedX; }  // Return base speed
+        float getSpeedY() const { return baseSpeedY; }  // Return base speed
 
     private:
         float x;
         float y;
         float radius;
-        float speedX;
-        float speedY;
+        float baseSpeedX;  // Changed from speedX to baseSpeedX
+        float baseSpeedY;  // Changed from speedY to baseSpeedY
     };
 
     class Brick {
@@ -67,6 +86,8 @@ public:
     ~Game();
     void run();
     void reset();
+    void initializeBricks();
+    void resetBallAndPaddle();
 
 private:
     enum class GameState {
@@ -81,9 +102,8 @@ private:
     void draw();
     void checkPaddleCollision();
     void checkBrickCollisions();
-    bool checkBallBrickCollision(const Rectangle& brickRect); // Helper to determine collision side
-    void resetBallAndPaddle();  // New method to reset positions
-    void initializeBricks();    // New method to initialize bricks
+    bool checkBallBrickCollision(const Rectangle& brickRect);
+    void validateGameObjects();
 
     std::unique_ptr<Paddle> paddle;
     std::unique_ptr<Ball> ball;
@@ -92,10 +112,10 @@ private:
     bool gameOver;
     bool won;
     int score;
-    int lives;  // Number of lives remaining
-    static const int INITIAL_LIVES = 3;  // Starting number of lives
+    int lives;
+    static const int INITIAL_LIVES = 3;
     float ballSpeedTimer;
-    static constexpr float SPEED_INCREASE_INTERVAL = 5.0f;  // seconds
+    static constexpr float SPEED_INCREASE_INTERVAL = 5.0f;
     static constexpr float BALL_SPEED_INCREMENT = 10.0f;
     static constexpr float MAX_BALL_SPEED = 1000.0f;
 };
