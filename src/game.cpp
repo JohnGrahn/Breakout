@@ -3,16 +3,19 @@
 #include <cmath>
 #include <algorithm>
 
+// Initialize static members
+float Game::SpeedConfig::VIRTUAL_WIDTH = 800.0f;
+float Game::SpeedConfig::VIRTUAL_HEIGHT = 600.0f;
+
 Game::~Game() = default;
 
 // Paddle implementation
 Game::Paddle::Paddle(float x, float y, float width, float height, float speed)
-    : x(x), y(y), width(width), height(height), baseSpeed(speed) {}
+    : x(x), y(y), width(width), height(height), baseSpeed(speed),
+      baseWidth(width), baseHeight(height) {}
 
 void Game::Paddle::update(float deltaTime) {
-    float speedScale = SpeedConfig::getSpeedScale();
-    float scaledSpeed = baseSpeed * speedScale;
-    
+    float scaledSpeed = baseSpeed * SpeedConfig::getWidthScale();
     if (IsKeyDown(KEY_LEFT)) {
         x -= scaledSpeed * deltaTime;
     }
@@ -23,8 +26,14 @@ void Game::Paddle::update(float deltaTime) {
     clampToScreen();
 }
 
+void Game::Paddle::updateDimensions() {
+    width = baseWidth * SpeedConfig::getWidthScale();
+    height = baseHeight * SpeedConfig::getHeightScale();
+    clampToScreen();
+}
+
 void Game::Paddle::clampToScreen() {
-    x = std::max(0.0f, std::min(x, static_cast<float>(GetScreenWidth() - width)));
+    x = std::max(0.0f, std::min(x, SpeedConfig::VIRTUAL_WIDTH - width));
 }
 
 void Game::Paddle::draw() {
@@ -44,12 +53,21 @@ void Game::Paddle::setX(float newX) {
 
 // Ball implementation
 Game::Ball::Ball(float x, float y, float radius, float speedX, float speedY)
-    : x(x), y(y), radius(radius), baseSpeedX(speedX), baseSpeedY(speedY) {}
+    : x(x), y(y), radius(radius), baseRadius(radius),
+      baseSpeedX(speedX), baseSpeedY(speedY) {}
+
+void Game::Ball::updateDimensions() {
+    // Use the average of width and height scale for the radius
+    float scale = (SpeedConfig::getWidthScale() + SpeedConfig::getHeightScale()) * 0.5f;
+    radius = baseRadius * scale;
+    clampToScreen();
+}
 
 void Game::Ball::update(float deltaTime) {
-    float speedScale = SpeedConfig::getSpeedScale();
-    x += baseSpeedX * deltaTime * speedScale;
-    y += baseSpeedY * deltaTime * speedScale;
+    float widthScale = SpeedConfig::getWidthScale();
+    float heightScale = SpeedConfig::getHeightScale();
+    x += baseSpeedX * widthScale * deltaTime;
+    y += baseSpeedY * heightScale * deltaTime;
     clampToScreen();
 }
 
@@ -59,8 +77,8 @@ void Game::Ball::clampToScreen() {
         x = radius;
         reverseX();
     }
-    if (x + radius > GetScreenWidth()) {
-        x = GetScreenWidth() - radius;
+    if (x + radius > SpeedConfig::VIRTUAL_WIDTH) {
+        x = SpeedConfig::VIRTUAL_WIDTH - radius;
         reverseX();
     }
     if (y - radius < 0) {
@@ -149,13 +167,11 @@ void Game::Brick::setColor(Color c) {
 void Game::initializeBricks() {
     const int rows = 8;
     const int cols = 14;
-    const float screenWidth = static_cast<float>(GetScreenWidth());
-    const float screenHeight = static_cast<float>(GetScreenHeight());
     
-    const float brickSpacing = screenWidth * 0.003f;
+    const float brickSpacing = SpeedConfig::VIRTUAL_WIDTH * 0.003f;
     const float totalSpacing = brickSpacing * (cols + 1);
-    const float brickWidth = (screenWidth - totalSpacing) / cols;
-    const float brickHeight = screenHeight * 0.033f;
+    const float brickWidth = (SpeedConfig::VIRTUAL_WIDTH - totalSpacing) / cols;
+    const float brickHeight = SpeedConfig::VIRTUAL_HEIGHT * 0.033f;
 
     bricks.clear();
     bricks.resize(rows);
@@ -164,7 +180,7 @@ void Game::initializeBricks() {
         bricks[i].reserve(cols);
         for (int j = 0; j < cols; j++) {
             float x = brickSpacing + j * (brickWidth + brickSpacing);
-            float y = brickSpacing + i * (brickHeight + brickSpacing) + (screenHeight * 0.083f);
+            float y = brickSpacing + i * (brickHeight + brickSpacing) + (SpeedConfig::VIRTUAL_HEIGHT * 0.083f);
             
             auto brick = std::make_unique<Brick>(x, y, brickWidth, brickHeight, true);
             
@@ -182,28 +198,27 @@ void Game::initializeBricks() {
 }
 
 Game::Game() : ballSpeedTimer(0.0f) {
-    const float screenWidth = static_cast<float>(GetScreenWidth());
-    const float screenHeight = static_cast<float>(GetScreenHeight());
+    SpeedConfig::updateVirtualDimensions();
     
-    // Initialize paddle with relative dimensions
-    const float paddleWidth = screenWidth * 0.125f;
-    const float paddleHeight = screenHeight * 0.033f;
-    const float paddleY = screenHeight * 0.9f;
+    // Initialize paddle with dimensions relative to base window size
+    const float paddleWidth = SpeedConfig::BASE_WINDOW_WIDTH * 0.125f;
+    const float paddleHeight = SpeedConfig::BASE_WINDOW_HEIGHT * 0.033f;
+    const float paddleY = SpeedConfig::VIRTUAL_HEIGHT * 0.9f;
     
     paddle = std::make_unique<Paddle>(
-        (screenWidth - paddleWidth) / 2,
+        (SpeedConfig::VIRTUAL_WIDTH - paddleWidth * SpeedConfig::getWidthScale()) / 2,
         paddleY,
         paddleWidth,
         paddleHeight,
         SpeedConfig::PADDLE_BASE_SPEED
     );
 
-    // Initialize ball with relative dimensions
-    const float ballRadius = screenWidth * 0.0125f;
+    // Initialize ball with radius relative to base window size
+    const float ballRadius = SpeedConfig::BASE_WINDOW_WIDTH * 0.0125f;
     
     ball = std::make_unique<Ball>(
-        screenWidth / 2,
-        paddleY - ballRadius,
+        SpeedConfig::VIRTUAL_WIDTH / 2,
+        paddleY - ballRadius * SpeedConfig::getHeightScale(),
         ballRadius,
         SpeedConfig::BALL_BASE_SPEED,
         -SpeedConfig::BALL_BASE_SPEED
@@ -216,30 +231,77 @@ Game::Game() : ballSpeedTimer(0.0f) {
     won = false;
     score = 0;
     lives = INITIAL_LIVES;
+
+    updateCamera();
+}
+
+void Game::updateCamera() {
+    // Update virtual dimensions
+    SpeedConfig::updateVirtualDimensions();
+    
+    // Update game objects with new dimensions
+    if (paddle) {
+        paddle->updateDimensions();
+    }
+    if (ball) {
+        ball->updateDimensions();
+    }
+    
+    // Update brick positions and sizes without reinitializing
+    const int rows = 8;
+    const int cols = 14;
+    
+    const float brickSpacing = SpeedConfig::VIRTUAL_WIDTH * 0.003f;
+    const float totalSpacing = brickSpacing * (cols + 1);
+    const float brickWidth = (SpeedConfig::VIRTUAL_WIDTH - totalSpacing) / cols;
+    const float brickHeight = SpeedConfig::VIRTUAL_HEIGHT * 0.033f;
+
+    for (int i = 0; i < rows && i < bricks.size(); i++) {
+        for (int j = 0; j < cols && j < bricks[i].size(); j++) {
+            if (bricks[i][j]) {
+                float x = brickSpacing + j * (brickWidth + brickSpacing);
+                float y = brickSpacing + i * (brickHeight + brickSpacing) + (SpeedConfig::VIRTUAL_HEIGHT * 0.083f);
+                
+                // Store the current brick's state before replacing it
+                bool isAlive = bricks[i][j]->isAlive();
+                Color color = bricks[i][j]->getColor();
+                
+                // Create new brick with preserved state
+                auto newBrick = std::make_unique<Brick>(x, y, brickWidth, brickHeight, isAlive);
+                newBrick->setColor(color);
+                
+                // Replace the old brick
+                bricks[i][j] = std::move(newBrick);
+            }
+        }
+    }
+    
+    // No need for camera scaling since we're using screen coordinates directly
+    camera.offset = Vector2{0, 0};
+    camera.target = Vector2{0, 0};
+    camera.rotation = 0.0f;
+    camera.zoom = 1.0f;
 }
 
 void Game::resetBallAndPaddle() {
-    const float screenWidth = static_cast<float>(GetScreenWidth());
-    const float screenHeight = static_cast<float>(GetScreenHeight());
-    
-    // Update paddle width and position
-    const float paddleWidth = screenWidth * 0.125f;
-    const float paddleHeight = screenHeight * 0.033f;
-    const float paddleY = screenHeight * 0.9f;
+    // Use base window dimensions for consistent sizing
+    const float paddleWidth = SpeedConfig::BASE_WINDOW_WIDTH * 0.125f;
+    const float paddleHeight = SpeedConfig::BASE_WINDOW_HEIGHT * 0.033f;
+    const float paddleY = SpeedConfig::VIRTUAL_HEIGHT * 0.9f;
     
     paddle = std::make_unique<Paddle>(
-        (screenWidth - paddleWidth) / 2,
+        (SpeedConfig::VIRTUAL_WIDTH - paddleWidth * SpeedConfig::getWidthScale()) / 2,
         paddleY,
         paddleWidth,
         paddleHeight,
         SpeedConfig::PADDLE_BASE_SPEED
     );
     
-    // Update ball radius and position
-    const float ballRadius = screenWidth * 0.0125f;
+    // Use base window dimensions for consistent ball sizing
+    const float ballRadius = SpeedConfig::BASE_WINDOW_WIDTH * 0.0125f;
     ball = std::make_unique<Ball>(
-        screenWidth / 2,
-        paddleY - ballRadius,
+        SpeedConfig::VIRTUAL_WIDTH / 2,
+        paddleY - ballRadius * SpeedConfig::getHeightScale(),
         ballRadius,
         SpeedConfig::BALL_BASE_SPEED,
         -SpeedConfig::BALL_BASE_SPEED
@@ -341,7 +403,7 @@ void Game::update(float deltaTime) {
     if (state == GameState::PLAYING) {
         paddle->update(deltaTime);
         ball->update(deltaTime);
-        validateGameObjects();  // Validate after movement
+        validateGameObjects();
 
         ballSpeedTimer += deltaTime;
         if (ballSpeedTimer >= SPEED_INCREASE_INTERVAL) {
@@ -353,7 +415,7 @@ void Game::update(float deltaTime) {
         checkPaddleCollision();
         checkBrickCollisions();
 
-        if (ball->getPosition().y + ball->getRadius() > GetScreenHeight()) {
+        if (ball->getPosition().y + ball->getRadius() > SpeedConfig::VIRTUAL_HEIGHT) {
             lives--;
             if (lives <= 0) {
                 state = GameState::GAME_OVER;
@@ -384,63 +446,80 @@ void Game::draw() {
     BeginDrawing();
     ClearBackground(BLACK);
 
-    const float screenWidth = static_cast<float>(GetScreenWidth());
-    const float screenHeight = static_cast<float>(GetScreenHeight());
-    const float fontSize = screenHeight * 0.067f;
-    const float smallFontSize = screenHeight * 0.033f;
+    // Update camera before drawing
+    updateCamera();
+    BeginMode2D(camera);
+
+    // Calculate font sizes relative to screen height with a maximum size
+    const float maxFontSize = SpeedConfig::VIRTUAL_HEIGHT * 0.067f;
+    const float fontSize = std::min(maxFontSize, SpeedConfig::VIRTUAL_HEIGHT * 0.067f);
+    const float smallFontSize = std::min(maxFontSize * 0.5f, SpeedConfig::VIRTUAL_HEIGHT * 0.033f);
 
     switch (state) {
         case GameState::START_SCREEN: {
             const char* title = "BREAKOUT";
             const char* instructions = "Press SPACE to Start";
-            
+
+            // Ensure text fits within screen width
+            float titleScale = 1.0f;
             int titleWidth = MeasureText(title, fontSize);
+            if (titleWidth > SpeedConfig::VIRTUAL_WIDTH * 0.8f) {
+                titleScale = (SpeedConfig::VIRTUAL_WIDTH * 0.8f) / titleWidth;
+            }
+
+            DrawText(title,
+                    (SpeedConfig::VIRTUAL_WIDTH - titleWidth * titleScale) / 2,
+                    SpeedConfig::VIRTUAL_HEIGHT / 3,
+                    fontSize * titleScale, WHITE);
+
             int instructionsWidth = MeasureText(instructions, smallFontSize);
-            
-            DrawText(title, 
-                    (screenWidth - titleWidth) / 2,
-                    screenHeight / 3,
-                    fontSize, WHITE);
-            
             DrawText(instructions,
-                    (screenWidth - instructionsWidth) / 2,
-                    screenHeight / 2,
+                    (SpeedConfig::VIRTUAL_WIDTH - instructionsWidth) / 2,
+                    SpeedConfig::VIRTUAL_HEIGHT / 2,
                     smallFontSize, GRAY);
             break;
         }
-        
+
         case GameState::PLAYING:
         case GameState::PAUSED: {
             paddle->draw();
             ball->draw();
-            
+
             for (const auto& row : bricks) {
                 for (const auto& brick : row) {
                     brick->draw();
                 }
             }
 
+            // Draw score and lives with padding from screen edges
+            const float edgePadding = SpeedConfig::VIRTUAL_WIDTH * 0.02f;
             DrawText(TextFormat("Score: %d", score),
-                    10,
-                    10,
+                    edgePadding,
+                    edgePadding,
                     smallFontSize, WHITE);
-            
-            DrawText(TextFormat("Lives: %d", lives),
-                    screenWidth - MeasureText(TextFormat("Lives: %d", lives), smallFontSize) - 10,
-                    10,
+
+            const char* livesText = TextFormat("Lives: %d", lives);
+            DrawText(livesText,
+                    SpeedConfig::VIRTUAL_WIDTH - MeasureText(livesText, smallFontSize) - edgePadding,
+                    edgePadding,
                     smallFontSize, WHITE);
 
             if (state == GameState::PAUSED) {
                 const char* pausedText = "PAUSED";
+                float textScale = 1.0f;
                 int textWidth = MeasureText(pausedText, fontSize);
+                if (textWidth > SpeedConfig::VIRTUAL_WIDTH * 0.8f) {
+                    textScale = (SpeedConfig::VIRTUAL_WIDTH * 0.8f) / textWidth;
+                }
+
                 DrawText(pausedText,
-                        (screenWidth - textWidth) / 2,
-                        screenHeight / 2,
-                        fontSize, YELLOW);
+                        (SpeedConfig::VIRTUAL_WIDTH - textWidth * textScale) / 2,
+                        SpeedConfig::VIRTUAL_HEIGHT / 2,
+                        fontSize * textScale, YELLOW);
             }
             break;
         }
-        
+
         case GameState::GAME_OVER:
         case GameState::WON: {
             paddle->draw();
@@ -454,17 +533,24 @@ void Game::draw() {
             const char* text = state == GameState::GAME_OVER ?
                 "Game Over! Press SPACE to restart" :
                 "You Won! Press SPACE to restart";
-            
+
+            // Calculate text scale to ensure it fits
+            float textScale = 1.0f;
             int textWidth = MeasureText(text, fontSize);
+            if (textWidth > SpeedConfig::VIRTUAL_WIDTH * 0.8f) {
+                textScale = (SpeedConfig::VIRTUAL_WIDTH * 0.8f) / textWidth;
+            }
+
             DrawText(text,
-                    (screenWidth - textWidth) / 2,
-                    screenHeight / 2,
-                    fontSize,
+                    (SpeedConfig::VIRTUAL_WIDTH - textWidth * textScale) / 2,
+                    SpeedConfig::VIRTUAL_HEIGHT / 2,
+                    fontSize * textScale,
                     state == GameState::GAME_OVER ? RED : GREEN);
             break;
         }
     }
 
+    EndMode2D();
     EndDrawing();
 }
 

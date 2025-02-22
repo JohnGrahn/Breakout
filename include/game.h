@@ -4,6 +4,7 @@
 #include <raylib.h>
 #include <memory>
 #include <vector>
+#include <algorithm>
 
 class Game {
 public:
@@ -14,10 +15,23 @@ public:
         static constexpr float PADDLE_BASE_SPEED = 500.0f;
         static constexpr float BALL_BASE_SPEED = 300.0f;
         static constexpr float BALL_SPEED_INCREMENT = 10.0f;
+        
+        // Dynamic virtual dimensions that change with screen size
+        static float VIRTUAL_WIDTH;
+        static float VIRTUAL_HEIGHT;
 
-        // Get single scaling factor
-        static float getSpeedScale() {
-            return BASE_WINDOW_WIDTH / static_cast<float>(GetScreenWidth());
+        // Get scale factors
+        static float getWidthScale() {
+            return VIRTUAL_WIDTH / BASE_WINDOW_WIDTH;
+        }
+        
+        static float getHeightScale() {
+            return VIRTUAL_HEIGHT / BASE_WINDOW_HEIGHT;
+        }
+        
+        static void updateVirtualDimensions() {
+            VIRTUAL_WIDTH = static_cast<float>(GetScreenWidth());
+            VIRTUAL_HEIGHT = static_cast<float>(GetScreenHeight());
         }
     };
 
@@ -30,13 +44,16 @@ public:
         void setX(float newX);
         void clampToScreen();
         float getBaseSpeed() const { return baseSpeed; }
+        void updateDimensions();  // New method to update dimensions when screen changes
 
     private:
         float x;
         float y;
         float width;
         float height;
-        float baseSpeed;  // Changed from speed to baseSpeed
+        float baseSpeed;
+        float baseWidth;  // Store original width for scaling
+        float baseHeight; // Store original height for scaling
     };
 
     class Ball {
@@ -53,15 +70,17 @@ public:
         void setSpeed(float newSpeedX, float newSpeedY);
         void clampSpeed(float maxSpeed);
         void clampToScreen();
-        float getSpeedX() const { return baseSpeedX; }  // Return base speed
-        float getSpeedY() const { return baseSpeedY; }  // Return base speed
+        float getSpeedX() const { return baseSpeedX; }
+        float getSpeedY() const { return baseSpeedY; }
+        void updateDimensions();  // New method to update dimensions when screen changes
 
     private:
         float x;
         float y;
         float radius;
-        float baseSpeedX;  // Changed from speedX to baseSpeedX
-        float baseSpeedY;  // Changed from speedY to baseSpeedY
+        float baseRadius;  // Store original radius for scaling
+        float baseSpeedX;
+        float baseSpeedY;
     };
 
     class Brick {
@@ -72,6 +91,7 @@ public:
         bool isAlive() const;
         void destroy();
         void setColor(Color c);
+        Color getColor() const { return color; }
 
     private:
         float x;
@@ -88,6 +108,7 @@ public:
     void reset();
     void initializeBricks();
     void resetBallAndPaddle();
+    void updateCamera();
 
 private:
     enum class GameState {
@@ -105,6 +126,10 @@ private:
     bool checkBallBrickCollision(const Rectangle& brickRect);
     void validateGameObjects();
 
+private: // Added private section for camera
+    Camera2D camera;
+
+public:
     std::unique_ptr<Paddle> paddle;
     std::unique_ptr<Ball> ball;
     std::vector<std::vector<std::unique_ptr<Brick>>> bricks;

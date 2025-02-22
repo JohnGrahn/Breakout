@@ -1,8 +1,27 @@
 #include <raylib.h>
 #include "../include/game.h"
 #include <emscripten.h>
+#include <algorithm>
 
 Game* gameInstance = nullptr;
+
+// Function to get optimal window size maintaining aspect ratio
+void getOptimalWindowSize(int& width, int& height) {
+    // Get the monitor's dimensions
+    int monitorWidth = GetMonitorWidth(GetCurrentMonitor());
+    int monitorHeight = GetMonitorHeight(GetCurrentMonitor());
+    
+    // Calculate scaling factors for both dimensions
+    float scaleX = static_cast<float>(monitorWidth) / Game::SpeedConfig::VIRTUAL_WIDTH;
+    float scaleY = static_cast<float>(monitorHeight) / Game::SpeedConfig::VIRTUAL_HEIGHT;
+    
+    // Use the smaller scale to maintain aspect ratio
+    float scale = std::min(scaleX, scaleY);
+    
+    // Calculate the new dimensions
+    width = static_cast<int>(Game::SpeedConfig::VIRTUAL_WIDTH * scale);
+    height = static_cast<int>(Game::SpeedConfig::VIRTUAL_HEIGHT * scale);
+}
 
 // Function to handle window resize
 #ifdef __EMSCRIPTEN__
@@ -13,9 +32,8 @@ extern "C" {
         SetWindowSize(width, height);
         // Update game state if needed
         if (gameInstance) {
-            // Force brick reinitialization with new dimensions
-            gameInstance->initializeBricks();
-            // Reset paddle and ball positions for new dimensions
+            Game::SpeedConfig::updateVirtualDimensions();
+            gameInstance->updateCamera();
             gameInstance->resetBallAndPaddle();
         }
     }
@@ -24,15 +42,16 @@ extern "C" {
 #endif
 
 int main() {
-    // Initialize with default size, will be updated by JavaScript
-    const int defaultWidth = 800;
-    const int defaultHeight = 600;
+    // Enable window resizing and MSAA
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
     
-    InitWindow(defaultWidth, defaultHeight, "Breakout");
+    // Initialize with full screen size
+    int monitorWidth = GetMonitorWidth(GetCurrentMonitor());
+    int monitorHeight = GetMonitorHeight(GetCurrentMonitor());
+    InitWindow(monitorWidth, monitorHeight, "Breakout");
+    
+    // Set target FPS and enable VSync for smoother rendering
     SetTargetFPS(60);
-
-    // Enable window resizing
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     
     // Create game instance and store pointer for resize handling
     Game game;
@@ -40,6 +59,11 @@ int main() {
 
     // Main game loop
     while (!WindowShouldClose()) {
+        // Check if window was resized
+        if (IsWindowResized()) {
+            Game::SpeedConfig::updateVirtualDimensions();
+            gameInstance->updateCamera();
+        }
         game.run();
     }
 
