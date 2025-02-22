@@ -454,6 +454,12 @@ void Game::draw() {
     const float maxFontSize = SpeedConfig::VIRTUAL_HEIGHT * 0.067f;
     const float fontSize = std::min(maxFontSize, SpeedConfig::VIRTUAL_HEIGHT * 0.067f);
     const float smallFontSize = std::min(maxFontSize * 0.5f, SpeedConfig::VIRTUAL_HEIGHT * 0.033f);
+    
+    // Calculate base text size for score and lives
+    const float baseTextSize = SpeedConfig::BASE_WINDOW_HEIGHT * 0.033f;
+    const float scaledTextSize = baseTextSize * SpeedConfig::getHeightScale();
+    const float maxHUDTextSize = SpeedConfig::VIRTUAL_HEIGHT * 0.05f;  // Maximum 5% of screen height
+    const float hudTextSize = std::min(scaledTextSize, maxHUDTextSize);
 
     switch (state) {
         case GameState::START_SCREEN: {
@@ -493,16 +499,28 @@ void Game::draw() {
 
             // Draw score and lives with padding from screen edges
             const float edgePadding = SpeedConfig::VIRTUAL_WIDTH * 0.02f;
-            DrawText(TextFormat("Score: %d", score),
-                    edgePadding,
-                    edgePadding,
-                    smallFontSize, WHITE);
-
+            const char* scoreText = TextFormat("Score: %d", score);
             const char* livesText = TextFormat("Lives: %d", lives);
-            DrawText(livesText,
-                    SpeedConfig::VIRTUAL_WIDTH - MeasureText(livesText, smallFontSize) - edgePadding,
-                    edgePadding,
-                    smallFontSize, WHITE);
+            
+            // Calculate text widths for positioning
+            int scoreWidth = MeasureText(scoreText, hudTextSize);
+            int livesWidth = MeasureText(livesText, hudTextSize);
+            
+            // Ensure text doesn't overlap by adjusting position if needed
+            float scoreX = edgePadding;
+            float livesX = SpeedConfig::VIRTUAL_WIDTH - livesWidth - edgePadding;
+            
+            // If texts would overlap, adjust positions
+            float minSpacing = SpeedConfig::VIRTUAL_WIDTH * 0.05f;  // Minimum 5% screen width between texts
+            if (scoreX + scoreWidth + minSpacing > livesX) {
+                // Center both texts with spacing between them
+                float totalWidth = scoreWidth + minSpacing + livesWidth;
+                scoreX = (SpeedConfig::VIRTUAL_WIDTH - totalWidth) / 2;
+                livesX = scoreX + scoreWidth + minSpacing;
+            }
+            
+            DrawText(scoreText, scoreX, edgePadding, hudTextSize, WHITE);
+            DrawText(livesText, livesX, edgePadding, hudTextSize, WHITE);
 
             if (state == GameState::PAUSED) {
                 const char* pausedText = "PAUSED";
