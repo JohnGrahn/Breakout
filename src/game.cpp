@@ -54,7 +54,7 @@ void Game::Paddle::setX(float newX) {
 // Ball implementation
 Game::Ball::Ball(float x, float y, float radius, float speedX, float speedY)
     : x(x), y(y), radius(radius), baseRadius(radius),
-      baseSpeedX(speedX), baseSpeedY(speedY) {}
+      baseSpeedX(speedX), baseSpeedY(speedY), spin(0.0f) {}
 
 void Game::Ball::updateDimensions() {
     // Use the average of width and height scale for the radius
@@ -66,8 +66,14 @@ void Game::Ball::updateDimensions() {
 void Game::Ball::update(float deltaTime) {
     float widthScale = SpeedConfig::getWidthScale();
     float heightScale = SpeedConfig::getHeightScale();
-    x += baseSpeedX * widthScale * deltaTime;
+    
+    // Apply spin influence to the velocity
+    float spinInfluence = spin * SPIN_INFLUENCE;
+    x += (baseSpeedX + baseSpeedX * spinInfluence) * widthScale * deltaTime;
     y += baseSpeedY * heightScale * deltaTime;
+    
+    // Decay spin over time
+    applySpinDecay(deltaTime);
     clampToScreen();
 }
 
@@ -132,6 +138,23 @@ void Game::Ball::clampSpeed(float maxSpeed) {
         float scale = maxSpeed / currentSpeed;
         baseSpeedX *= scale;
         baseSpeedY *= scale;
+    }
+}
+
+void Game::Ball::setVelocity(float angleInRadians, float speed) {
+    baseSpeedX = speed * cos(angleInRadians);
+    baseSpeedY = speed * sin(angleInRadians);
+}
+
+void Game::Ball::addSpin(float spinValue) {
+    spin = std::clamp(spin + spinValue, -MAX_SPIN, MAX_SPIN);
+}
+
+void Game::Ball::applySpinDecay(float deltaTime) {
+    if (spin > 0.0f) {
+        spin = std::max(0.0f, spin - SPIN_DECAY * deltaTime);
+    } else if (spin < 0.0f) {
+        spin = std::min(0.0f, spin + SPIN_DECAY * deltaTime);
     }
 }
 
@@ -328,20 +351,26 @@ void Game::checkPaddleCollision() {
         // Move ball above paddle to prevent sticking
         ball->setPosition(ballPos.x, paddleRect.y - ballRadius);
         
-        // Calculate bounce angle based on hit position
-        float hitPosition = (ballPos.x - paddleRect.x) / paddleRect.width;
+        // Calculate hit position relative to paddle center (-1 to 1)
+        float hitPosition = (ballPos.x - (paddleRect.x + paddleRect.width / 2)) / (paddleRect.width / 2);
         
-        // Use base speeds for bounce (scaling will be applied in update)
-        if (hitPosition < 0.33f) {
-            ball->setSpeed(-SpeedConfig::BALL_BASE_SPEED, -SpeedConfig::BALL_BASE_SPEED);
-        } else if (hitPosition > 0.66f) {
-            ball->setSpeed(SpeedConfig::BALL_BASE_SPEED, -SpeedConfig::BALL_BASE_SPEED);
-        } else {
-            // Middle hit - maintain current direction but use base speed
-            float currentSpeed = ball->getSpeedX();
-            float direction = currentSpeed > 0 ? 1.0f : -1.0f;
-            ball->setSpeed(SpeedConfig::BALL_BASE_SPEED * direction, -SpeedConfig::BALL_BASE_SPEED);
-        }
+        // Calculate reflection angle based on hit position
+        float baseAngle = -PI / 2;  // Straight up
+        float maxAngleOffset = PI / 3;  // 60 degrees max deflection
+        float angle = baseAngle + (hitPosition * maxAngleOffset);
+        
+        // Calculate speed based on current ball speed
+        float currentSpeed = sqrt(ball->getSpeedX() * ball->getSpeedX() + 
+                                ball->getSpeedY() * ball->getSpeedY());
+        
+        // Set new velocity based on calculated angle
+        ball->setVelocity(angle, currentSpeed);
+        
+        // Add spin based on hit position and current paddle movement
+        float spinFactor = hitPosition;  // -1 to 1 based on hit position
+        if (IsKeyDown(KEY_LEFT)) spinFactor -= 0.5f;
+        if (IsKeyDown(KEY_RIGHT)) spinFactor += 0.5f;
+        ball->addSpin(spinFactor * 0.5f);
         
         validateGameObjects();
     }
@@ -373,13 +402,43 @@ bool Game::checkBallBrickCollision(const Rectangle& brickRect) {
         float dx = ballPos.x - brickCenterX;
         float dy = ballPos.y - brickCenterY;
         
-        if (fabs(dx) * brickRect.height > fabs(dy) * brickRect.width) {
-            ball->reverseX();
+        // Calculate normalized collision angle
+        float angle = atan2(dy, dx);
+        
+        // Calculate current ball speed
+        float currentSpeed = sqrt(ball->getSpeedX() * ball->getSpeedX() + 
+                                ball->getSpeedY() * ball->getSpeedY());
+        
+        // Add slight randomization to prevent chain reactions (±5 degrees)
+        float randomAngle = angle + (((float)rand() / RAND_MAX) * 0.174533f - 0.0872665f);
+        
+        // Determine if this is a corner collision
+        bool isCornerCollision = (fabs(dx) > brickRect.width * 0.4f && 
+                                fabs(dy) > brickRect.height * 0.4f);
+        
+        if (isCornerCollision) {
+            // For corner collisions, reflect based on the collision angle
+            ball->setVelocity(randomAngle, currentSpeed);
+            
+            // Add slight spin based on which corner was hit
+            float spinFactor = (dx > 0) ? 0.2f : -0.2f;
+            ball->addSpin(spinFactor);
         } else {
-            ball->reverseY();
+            // For edge collisions, use improved reflection
+            if (fabs(dx) * brickRect.height > fabs(dy) * brickRect.width) {
+                ball->reverseX();
+                // Add spin based on the vertical position of the hit
+                float spinFactor = (dy > 0) ? 0.1f : -0.1f;
+                ball->addSpin(spinFactor);
+            } else {
+                ball->reverseY();
+                // Add spin based on the horizontal position of the hit
+                float spinFactor = (dx > 0) ? -0.1f : 0.1f;
+                ball->addSpin(spinFactor);
+            }
         }
         
-        validateGameObjects();  // Ensure ball stays in bounds after collision
+        validateGameObjects();
         return true;
     }
     return false;

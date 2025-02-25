@@ -72,15 +72,22 @@ public:
         void clampToScreen();
         float getSpeedX() const { return baseSpeedX; }
         float getSpeedY() const { return baseSpeedY; }
-        void updateDimensions();  // New method to update dimensions when screen changes
+        void updateDimensions();
+        void setVelocity(float angleInRadians, float speed);
+        void addSpin(float spinValue);
+        void applySpinDecay(float deltaTime);
 
     private:
         float x;
         float y;
         float radius;
-        float baseRadius;  // Store original radius for scaling
+        float baseRadius;
         float baseSpeedX;
         float baseSpeedY;
+        float spin;
+        static constexpr float SPIN_DECAY = 2.0f;
+        static constexpr float MAX_SPIN = 1.0f;
+        static constexpr float SPIN_INFLUENCE = 0.3f;
     };
 
     class Brick {
