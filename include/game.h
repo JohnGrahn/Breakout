@@ -143,6 +143,7 @@ public:
     GameState state;
     bool gameOver;
     bool won;
+    bool ballAttached;  // Tracks whether the ball is attached to the paddle
     int score;
     int lives;
     static const int INITIAL_LIVES = 3;

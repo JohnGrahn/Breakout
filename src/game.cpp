@@ -252,6 +252,7 @@ Game::Game() : ballSpeedTimer(0.0f) {
     state = GameState::START_SCREEN;
     gameOver = false;
     won = false;
+    ballAttached = true;  // Ball starts attached to paddle
     score = 0;
     lives = INITIAL_LIVES;
 
@@ -453,6 +454,10 @@ void Game::update(float deltaTime) {
             reset();
             state = GameState::PLAYING;
         }
+        else if (state == GameState::PLAYING && ballAttached) {
+            // Launch the ball when space is pressed and the ball is attached
+            ballAttached = false;
+        }
     }
 
     if (IsKeyPressed(KEY_P) && (state == GameState::PLAYING || state == GameState::PAUSED)) {
@@ -461,28 +466,38 @@ void Game::update(float deltaTime) {
 
     if (state == GameState::PLAYING) {
         paddle->update(deltaTime);
-        ball->update(deltaTime);
-        validateGameObjects();
+        
+        if (ballAttached) {
+            // Keep the ball positioned above the paddle when attached
+            Rectangle paddleRect = paddle->getRect();
+            ball->setPosition(paddleRect.x + paddleRect.width / 2, paddleRect.y - ball->getRadius());
+        } else {
+            // Normal ball update when not attached
+            ball->update(deltaTime);
+            
+            ballSpeedTimer += deltaTime;
+            if (ballSpeedTimer >= SPEED_INCREASE_INTERVAL) {
+                ball->increaseSpeed(BALL_SPEED_INCREMENT);
+                ball->clampSpeed(MAX_BALL_SPEED);
+                ballSpeedTimer = 0.0f;
+            }
+            
+            checkPaddleCollision();
+            checkBrickCollisions();
 
-        ballSpeedTimer += deltaTime;
-        if (ballSpeedTimer >= SPEED_INCREASE_INTERVAL) {
-            ball->increaseSpeed(BALL_SPEED_INCREMENT);
-            ball->clampSpeed(MAX_BALL_SPEED);
-            ballSpeedTimer = 0.0f;
-        }
-
-        checkPaddleCollision();
-        checkBrickCollisions();
-
-        if (ball->getPosition().y + ball->getRadius() > SpeedConfig::VIRTUAL_HEIGHT) {
-            lives--;
-            if (lives <= 0) {
-                state = GameState::GAME_OVER;
-                gameOver = true;
-            } else {
-                resetBallAndPaddle();
+            if (ball->getPosition().y + ball->getRadius() > SpeedConfig::VIRTUAL_HEIGHT) {
+                lives--;
+                if (lives <= 0) {
+                    state = GameState::GAME_OVER;
+                    gameOver = true;
+                } else {
+                    resetBallAndPaddle();
+                    ballAttached = true;  // Reattach ball to paddle after life loss
+                }
             }
         }
+
+        validateGameObjects();
 
         bool allBricksDestroyed = true;
         for (const auto& row : bricks) {
@@ -549,6 +564,16 @@ void Game::draw() {
         case GameState::PAUSED: {
             paddle->draw();
             ball->draw();
+
+            // Draw a launch prompt when ball is attached
+            if (ballAttached && state == GameState::PLAYING) {
+                const char* launchText = "Press SPACE to launch";
+                int textWidth = MeasureText(launchText, smallFontSize);
+                DrawText(launchText,
+                        (SpeedConfig::VIRTUAL_WIDTH - textWidth) / 2,
+                        SpeedConfig::VIRTUAL_HEIGHT * 0.7f,
+                        smallFontSize, YELLOW);
+            }
 
             for (const auto& row : bricks) {
                 for (const auto& brick : row) {
@@ -635,6 +660,7 @@ void Game::reset() {
     state = GameState::PLAYING;
     gameOver = false;
     won = false;
+    ballAttached = true;  // Make sure ball starts attached to paddle when game is reset
     score = 0;
     lives = INITIAL_LIVES;
     
