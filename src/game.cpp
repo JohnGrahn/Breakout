@@ -12,10 +12,12 @@ Game::~Game() = default;
 // Paddle implementation
 Game::Paddle::Paddle(float x, float y, float width, float height, float speed)
     : x(x), y(y), width(width), height(height), baseSpeed(speed),
-      baseWidth(width), baseHeight(height) {}
+      baseWidth(width), baseHeight(height), touchActive(false), lastTouchX(0.0f) {}
 
 void Game::Paddle::update(float deltaTime) {
     float scaledSpeed = baseSpeed * SpeedConfig::getWidthScale();
+    
+    // Handle keyboard input
     if (IsKeyDown(KEY_LEFT)) {
         x -= scaledSpeed * deltaTime;
     }
@@ -23,7 +25,39 @@ void Game::Paddle::update(float deltaTime) {
         x += scaledSpeed * deltaTime;
     }
     
+    // Handle touch input
+    updateTouchInput(deltaTime);
+    
     clampToScreen();
+}
+
+void Game::Paddle::updateTouchInput(float deltaTime) {
+    float scaledSpeed = baseSpeed * SpeedConfig::getWidthScale() * 1.5f; // Slightly faster for touch
+    
+    // Using GESTURE_DRAG is better for paddle control than including GESTURE_TAP
+    if (IsGestureDetected(GESTURE_DRAG)) {
+        Vector2 touchPosition = GetTouchPosition(0); // Get the first touch point
+        
+        // Only control paddle if touch is in the lower half of the screen
+        // This prevents accidental paddle movement when trying to tap bricks
+        if (touchPosition.y > SpeedConfig::VIRTUAL_HEIGHT * 0.5f) {
+            // If this is the start of a new touch sequence
+            if (!touchActive) {
+                touchActive = true;
+                lastTouchX = touchPosition.x;
+            } else {
+                // Calculate movement based on touch difference
+                float touchDifference = touchPosition.x - lastTouchX;
+                if (fabs(touchDifference) > 1.0f) { // Small threshold to prevent tiny movements
+                    x += touchDifference;
+                    lastTouchX = touchPosition.x;
+                }
+            }
+        }
+    } else {
+        // No touch detected
+        touchActive = false;
+    }
 }
 
 void Game::Paddle::updateDimensions() {
@@ -446,7 +480,12 @@ bool Game::checkBallBrickCollision(const Rectangle& brickRect) {
 }
 
 void Game::update(float deltaTime) {
-    if (IsKeyPressed(KEY_SPACE)) {
+    // Handle keyboard and touch input for game state transitions
+    bool spacePressed = IsKeyPressed(KEY_SPACE);
+    bool screenTapped = IsGestureDetected(GESTURE_TAP);
+    
+    // Check for space key or tap to change game state
+    if (spacePressed || screenTapped) {
         if (state == GameState::START_SCREEN) {
             state = GameState::PLAYING;
         }
@@ -455,12 +494,30 @@ void Game::update(float deltaTime) {
             state = GameState::PLAYING;
         }
         else if (state == GameState::PLAYING && ballAttached) {
-            // Launch the ball when space is pressed and the ball is attached
+            // Launch the ball when space is pressed or screen is tapped and the ball is attached
             ballAttached = false;
         }
     }
-
-    if (IsKeyPressed(KEY_P) && (state == GameState::PLAYING || state == GameState::PAUSED)) {
+    
+    // Pause button via key or tap in top-right corner
+    bool pausePressed = IsKeyPressed(KEY_P);
+    bool pauseAreaTapped = false;
+    
+    if (screenTapped) {
+        Vector2 touchPosition = GetTouchPosition(0);
+        Rectangle pauseArea = { 
+            SpeedConfig::VIRTUAL_WIDTH - SpeedConfig::VIRTUAL_WIDTH * 0.1f, 
+            0, 
+            SpeedConfig::VIRTUAL_WIDTH * 0.1f, 
+            SpeedConfig::VIRTUAL_HEIGHT * 0.1f 
+        };
+        
+        if (CheckCollisionPointRec(touchPosition, pauseArea)) {
+            pauseAreaTapped = true;
+        }
+    }
+    
+    if ((pausePressed || pauseAreaTapped) && (state == GameState::PLAYING || state == GameState::PAUSED)) {
         state = (state == GameState::PLAYING) ? GameState::PAUSED : GameState::PLAYING;
     }
 
@@ -538,7 +595,7 @@ void Game::draw() {
     switch (state) {
         case GameState::START_SCREEN: {
             const char* title = "BREAKOUT";
-            const char* instructions = "Press SPACE to Start";
+            const char* instructions = "Press SPACE or TAP to Start";
 
             // Ensure text fits within screen width
             float titleScale = 1.0f;
@@ -557,6 +614,14 @@ void Game::draw() {
                     (SpeedConfig::VIRTUAL_WIDTH - instructionsWidth) / 2,
                     SpeedConfig::VIRTUAL_HEIGHT / 2,
                     smallFontSize, GRAY);
+                    
+            // Add mobile controls instructions
+            const char* mobileInstructions = "DRAG to move paddle | TAP to launch ball";
+            int mobileTextWidth = MeasureText(mobileInstructions, smallFontSize * 0.8f);
+            DrawText(mobileInstructions,
+                    (SpeedConfig::VIRTUAL_WIDTH - mobileTextWidth) / 2,
+                    SpeedConfig::VIRTUAL_HEIGHT * 0.6f,
+                    smallFontSize * 0.8f, GRAY);
             break;
         }
 
@@ -567,7 +632,7 @@ void Game::draw() {
 
             // Draw a launch prompt when ball is attached
             if (ballAttached && state == GameState::PLAYING) {
-                const char* launchText = "Press SPACE to launch";
+                const char* launchText = "Press SPACE or TAP to launch";
                 int textWidth = MeasureText(launchText, smallFontSize);
                 DrawText(launchText,
                         (SpeedConfig::VIRTUAL_WIDTH - textWidth) / 2,
@@ -605,6 +670,30 @@ void Game::draw() {
             
             DrawText(scoreText, scoreX, edgePadding, hudTextSize, WHITE);
             DrawText(livesText, livesX, edgePadding, hudTextSize, WHITE);
+            
+            // Draw pause button for touch screens
+            Rectangle pauseButtonRect = { 
+                SpeedConfig::VIRTUAL_WIDTH - SpeedConfig::VIRTUAL_WIDTH * 0.1f,
+                0,
+                SpeedConfig::VIRTUAL_WIDTH * 0.1f, 
+                SpeedConfig::VIRTUAL_HEIGHT * 0.1f 
+            };
+            
+            // Draw pause button with slight transparency
+            DrawRectangleRec(pauseButtonRect, ColorAlpha(DARKGRAY, 0.7f));
+            
+            // Calculate position for pause icon
+            float pauseIconSize = pauseButtonRect.width * 0.5f;
+            float pauseX = pauseButtonRect.x + (pauseButtonRect.width - pauseIconSize) / 2;
+            float pauseY = pauseButtonRect.y + (pauseButtonRect.height - pauseIconSize) / 2;
+            
+            // Draw two vertical lines for pause icon
+            float lineWidth = pauseIconSize * 0.2f;
+            float lineHeight = pauseIconSize;
+            float spacing = pauseIconSize * 0.3f;
+            
+            DrawRectangle(pauseX, pauseY, lineWidth, lineHeight, WHITE);
+            DrawRectangle(pauseX + lineWidth + spacing, pauseY, lineWidth, lineHeight, WHITE);
 
             if (state == GameState::PAUSED) {
                 const char* pausedText = "PAUSED";
@@ -618,6 +707,14 @@ void Game::draw() {
                         (SpeedConfig::VIRTUAL_WIDTH - textWidth * textScale) / 2,
                         SpeedConfig::VIRTUAL_HEIGHT / 2,
                         fontSize * textScale, YELLOW);
+                        
+                // Add tap instructions to resume
+                const char* tapToResume = "Tap in pause area to resume";
+                int resumeWidth = MeasureText(tapToResume, smallFontSize);
+                DrawText(tapToResume,
+                        (SpeedConfig::VIRTUAL_WIDTH - resumeWidth) / 2,
+                        SpeedConfig::VIRTUAL_HEIGHT * 0.6f,
+                        smallFontSize, GRAY);
             }
             break;
         }
@@ -633,8 +730,8 @@ void Game::draw() {
             }
 
             const char* text = state == GameState::GAME_OVER ?
-                "Game Over! Press SPACE to restart" :
-                "You Won! Press SPACE to restart";
+                "Game Over! Tap to restart" :
+                "You Won! Tap to restart";
 
             // Calculate text scale to ensure it fits
             float textScale = 1.0f;

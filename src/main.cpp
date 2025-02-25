@@ -42,13 +42,17 @@ extern "C" {
 #endif
 
 int main() {
-    // Enable window resizing and MSAA
+    // Enable window resizing and MSAA (remove unsupported flag)
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
     
     // Initialize with full screen size
     int monitorWidth = GetMonitorWidth(GetCurrentMonitor());
     int monitorHeight = GetMonitorHeight(GetCurrentMonitor());
     InitWindow(monitorWidth, monitorHeight, "Breakout");
+    
+    // Enable touch gesture detection with correct flags
+    // GESTURE_SWIPE is not supported, use specific directions if needed
+    SetGesturesEnabled(GESTURE_TAP | GESTURE_DRAG);
     
     // Set target FPS and enable VSync for smoother rendering
     SetTargetFPS(60);

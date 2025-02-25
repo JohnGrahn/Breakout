@@ -45,6 +45,7 @@ public:
         void clampToScreen();
         float getBaseSpeed() const { return baseSpeed; }
         void updateDimensions();  // New method to update dimensions when screen changes
+        void updateTouchInput(float deltaTime);  // New method to handle touch input
 
     private:
         float x;
@@ -54,6 +55,8 @@ public:
         float baseSpeed;
         float baseWidth;  // Store original width for scaling
         float baseHeight; // Store original height for scaling
+        bool touchActive;  // Tracks if touch is currently active
+        float lastTouchX;  // Last touch X position
     };
 
     class Ball {
