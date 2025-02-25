@@ -7,12 +7,35 @@
 float Game::SpeedConfig::VIRTUAL_WIDTH = 800.0f;
 float Game::SpeedConfig::VIRTUAL_HEIGHT = 600.0f;
 
+// Method to detect touch capability
+void Game::detectTouchDevice() {
+    // In Raylib, we can check for touch capability by trying to get touch positions
+    // or by checking platform-specific flags
+    
+    #if defined(PLATFORM_WEB) || defined(PLATFORM_ANDROID) || defined(PLATFORM_IOS)
+        // On mobile platforms and web, assume touch is available but verify
+        isTouchDevice = true;
+    #else
+        // On desktop platforms, check if touch points can be detected
+        isTouchDevice = false;
+        
+        // Try to detect touch points
+        if (GetTouchPointCount() > 0) {
+            isTouchDevice = true;
+        }
+    #endif
+    
+    // For debugging, you can force touch mode for testing
+    // isTouchDevice = true;
+}
+
 Game::~Game() = default;
 
 // Paddle implementation
 Game::Paddle::Paddle(float x, float y, float width, float height, float speed)
     : x(x), y(y), width(width), height(height), baseSpeed(speed),
-      baseWidth(width), baseHeight(height), touchActive(false), lastTouchX(0.0f) {}
+      baseWidth(width), baseHeight(height), touchActive(false), lastTouchX(0.0f),
+      touchEnabled(false) {}
 
 void Game::Paddle::update(float deltaTime) {
     float scaledSpeed = baseSpeed * SpeedConfig::getWidthScale();
@@ -25,13 +48,20 @@ void Game::Paddle::update(float deltaTime) {
         x += scaledSpeed * deltaTime;
     }
     
-    // Handle touch input
+    // Handle touch input if the game indicates that touch is available
+    // Note: Since we don't have direct access to the Game instance here, 
+    // we still call updateTouchInput but will check inside that method
     updateTouchInput(deltaTime);
     
     clampToScreen();
 }
 
 void Game::Paddle::updateTouchInput(float deltaTime) {
+    // Skip touch processing if not enabled
+    if (!touchEnabled) {
+        return;
+    }
+    
     float scaledSpeed = baseSpeed * SpeedConfig::getWidthScale() * 1.5f; // Slightly faster for touch
     
     // Using GESTURE_DRAG is better for paddle control than including GESTURE_TAP
@@ -254,8 +284,11 @@ void Game::initializeBricks() {
     }
 }
 
-Game::Game() : ballSpeedTimer(0.0f) {
+Game::Game() : ballSpeedTimer(0.0f), isTouchDevice(false) {
     SpeedConfig::updateVirtualDimensions();
+    
+    // Detect touch capability
+    detectTouchDevice();
     
     // Initialize paddle with dimensions relative to base window size
     const float paddleWidth = SpeedConfig::BASE_WINDOW_WIDTH * 0.125f;
@@ -269,6 +302,9 @@ Game::Game() : ballSpeedTimer(0.0f) {
         paddleHeight,
         SpeedConfig::PADDLE_BASE_SPEED
     );
+    
+    // Set touch enabled flag on paddle
+    paddle->setTouchEnabled(isTouchDevice);
 
     // Initialize ball with radius relative to base window size
     const float ballRadius = SpeedConfig::BASE_WINDOW_WIDTH * 0.0125f;
@@ -296,6 +332,14 @@ Game::Game() : ballSpeedTimer(0.0f) {
 void Game::updateCamera() {
     // Update virtual dimensions
     SpeedConfig::updateVirtualDimensions();
+    
+    // Re-detect touch capability in case device state changed
+    detectTouchDevice();
+    
+    // Update paddle touch enabled state
+    if (paddle) {
+        paddle->setTouchEnabled(isTouchDevice);
+    }
     
     // Update game objects with new dimensions
     if (paddle) {
@@ -482,7 +526,7 @@ bool Game::checkBallBrickCollision(const Rectangle& brickRect) {
 void Game::update(float deltaTime) {
     // Handle keyboard and touch input for game state transitions
     bool spacePressed = IsKeyPressed(KEY_SPACE);
-    bool screenTapped = IsGestureDetected(GESTURE_TAP);
+    bool screenTapped = isTouchDevice && IsGestureDetected(GESTURE_TAP);
     
     // Check for space key or tap to change game state
     if (spacePressed || screenTapped) {
@@ -503,7 +547,8 @@ void Game::update(float deltaTime) {
     bool pausePressed = IsKeyPressed(KEY_P);
     bool pauseAreaTapped = false;
     
-    if (screenTapped) {
+    // Only check for pause area taps if touch is available
+    if (isTouchDevice && screenTapped) {
         Vector2 touchPosition = GetTouchPosition(0);
         Rectangle pauseArea = { 
             SpeedConfig::VIRTUAL_WIDTH - SpeedConfig::VIRTUAL_WIDTH * 0.1f, 
@@ -595,7 +640,9 @@ void Game::draw() {
     switch (state) {
         case GameState::START_SCREEN: {
             const char* title = "BREAKOUT";
-            const char* instructions = "Press SPACE or TAP to Start";
+            const char* instructions = isTouchDevice ? 
+                "Press SPACE or TAP to Start" : 
+                "Press SPACE to Start";
 
             // Ensure text fits within screen width
             float titleScale = 1.0f;
@@ -615,13 +662,15 @@ void Game::draw() {
                     SpeedConfig::VIRTUAL_HEIGHT / 2,
                     smallFontSize, GRAY);
                     
-            // Add mobile controls instructions
-            const char* mobileInstructions = "DRAG to move paddle | TAP to launch ball";
-            int mobileTextWidth = MeasureText(mobileInstructions, smallFontSize * 0.8f);
-            DrawText(mobileInstructions,
-                    (SpeedConfig::VIRTUAL_WIDTH - mobileTextWidth) / 2,
-                    SpeedConfig::VIRTUAL_HEIGHT * 0.6f,
-                    smallFontSize * 0.8f, GRAY);
+            // Add mobile controls instructions only if touch is available
+            if (isTouchDevice) {
+                const char* mobileInstructions = "DRAG to move paddle | TAP to launch ball";
+                int mobileTextWidth = MeasureText(mobileInstructions, smallFontSize * 0.8f);
+                DrawText(mobileInstructions,
+                        (SpeedConfig::VIRTUAL_WIDTH - mobileTextWidth) / 2,
+                        SpeedConfig::VIRTUAL_HEIGHT * 0.6f,
+                        smallFontSize * 0.8f, GRAY);
+            }
             break;
         }
 
@@ -632,7 +681,9 @@ void Game::draw() {
 
             // Draw a launch prompt when ball is attached
             if (ballAttached && state == GameState::PLAYING) {
-                const char* launchText = "Press SPACE or TAP to launch";
+                const char* launchText = isTouchDevice ? 
+                    "Press SPACE or TAP to launch" : 
+                    "Press SPACE to launch";
                 int textWidth = MeasureText(launchText, smallFontSize);
                 DrawText(launchText,
                         (SpeedConfig::VIRTUAL_WIDTH - textWidth) / 2,
@@ -671,29 +722,31 @@ void Game::draw() {
             DrawText(scoreText, scoreX, edgePadding, hudTextSize, WHITE);
             DrawText(livesText, livesX, edgePadding, hudTextSize, WHITE);
             
-            // Draw pause button for touch screens
-            Rectangle pauseButtonRect = { 
-                SpeedConfig::VIRTUAL_WIDTH - SpeedConfig::VIRTUAL_WIDTH * 0.1f,
-                0,
-                SpeedConfig::VIRTUAL_WIDTH * 0.1f, 
-                SpeedConfig::VIRTUAL_HEIGHT * 0.1f 
-            };
-            
-            // Draw pause button with slight transparency
-            DrawRectangleRec(pauseButtonRect, ColorAlpha(DARKGRAY, 0.7f));
-            
-            // Calculate position for pause icon
-            float pauseIconSize = pauseButtonRect.width * 0.5f;
-            float pauseX = pauseButtonRect.x + (pauseButtonRect.width - pauseIconSize) / 2;
-            float pauseY = pauseButtonRect.y + (pauseButtonRect.height - pauseIconSize) / 2;
-            
-            // Draw two vertical lines for pause icon
-            float lineWidth = pauseIconSize * 0.2f;
-            float lineHeight = pauseIconSize;
-            float spacing = pauseIconSize * 0.3f;
-            
-            DrawRectangle(pauseX, pauseY, lineWidth, lineHeight, WHITE);
-            DrawRectangle(pauseX + lineWidth + spacing, pauseY, lineWidth, lineHeight, WHITE);
+            // Draw pause button for touch screens only if touch is available
+            if (isTouchDevice) {
+                Rectangle pauseButtonRect = { 
+                    SpeedConfig::VIRTUAL_WIDTH - SpeedConfig::VIRTUAL_WIDTH * 0.1f,
+                    0,
+                    SpeedConfig::VIRTUAL_WIDTH * 0.1f, 
+                    SpeedConfig::VIRTUAL_HEIGHT * 0.1f 
+                };
+                
+                // Draw pause button with slight transparency
+                DrawRectangleRec(pauseButtonRect, ColorAlpha(DARKGRAY, 0.7f));
+                
+                // Calculate position for pause icon
+                float pauseIconSize = pauseButtonRect.width * 0.5f;
+                float pauseX = pauseButtonRect.x + (pauseButtonRect.width - pauseIconSize) / 2;
+                float pauseY = pauseButtonRect.y + (pauseButtonRect.height - pauseIconSize) / 2;
+                
+                // Draw two vertical lines for pause icon
+                float lineWidth = pauseIconSize * 0.2f;
+                float lineHeight = pauseIconSize;
+                float spacing = pauseIconSize * 0.3f;
+                
+                DrawRectangle(pauseX, pauseY, lineWidth, lineHeight, WHITE);
+                DrawRectangle(pauseX + lineWidth + spacing, pauseY, lineWidth, lineHeight, WHITE);
+            }
 
             if (state == GameState::PAUSED) {
                 const char* pausedText = "PAUSED";
@@ -708,13 +761,15 @@ void Game::draw() {
                         SpeedConfig::VIRTUAL_HEIGHT / 2,
                         fontSize * textScale, YELLOW);
                         
-                // Add tap instructions to resume
-                const char* tapToResume = "Tap in pause area to resume";
-                int resumeWidth = MeasureText(tapToResume, smallFontSize);
-                DrawText(tapToResume,
-                        (SpeedConfig::VIRTUAL_WIDTH - resumeWidth) / 2,
-                        SpeedConfig::VIRTUAL_HEIGHT * 0.6f,
-                        smallFontSize, GRAY);
+                // Add tap instructions to resume only if touch is available
+                if (isTouchDevice) {
+                    const char* tapToResume = "Tap in pause area to resume";
+                    int resumeWidth = MeasureText(tapToResume, smallFontSize);
+                    DrawText(tapToResume,
+                            (SpeedConfig::VIRTUAL_WIDTH - resumeWidth) / 2,
+                            SpeedConfig::VIRTUAL_HEIGHT * 0.6f,
+                            smallFontSize, GRAY);
+                }
             }
             break;
         }
@@ -730,8 +785,8 @@ void Game::draw() {
             }
 
             const char* text = state == GameState::GAME_OVER ?
-                "Game Over! Tap to restart" :
-                "You Won! Tap to restart";
+                (isTouchDevice ? "Game Over! Tap to restart" : "Game Over! Press SPACE to restart") :
+                (isTouchDevice ? "You Won! Tap to restart" : "You Won! Press SPACE to restart");
 
             // Calculate text scale to ensure it fits
             float textScale = 1.0f;

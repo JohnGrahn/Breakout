@@ -46,6 +46,8 @@ public:
         float getBaseSpeed() const { return baseSpeed; }
         void updateDimensions();  // New method to update dimensions when screen changes
         void updateTouchInput(float deltaTime);  // New method to handle touch input
+        void setTouchEnabled(bool enabled) { touchEnabled = enabled; }
+        bool isTouchEnabled() const { return touchEnabled; }
 
     private:
         float x;
@@ -57,6 +59,7 @@ public:
         float baseHeight; // Store original height for scaling
         bool touchActive;  // Tracks if touch is currently active
         float lastTouchX;  // Last touch X position
+        bool touchEnabled; // Whether touch controls are enabled
     };
 
     class Ball {
@@ -147,6 +150,7 @@ public:
     bool gameOver;
     bool won;
     bool ballAttached;  // Tracks whether the ball is attached to the paddle
+    bool isTouchDevice; // Flag to indicate if device supports touch
     int score;
     int lives;
     static const int INITIAL_LIVES = 3;
@@ -154,6 +158,9 @@ public:
     static constexpr float SPEED_INCREASE_INTERVAL = 5.0f;
     static constexpr float BALL_SPEED_INCREMENT = 10.0f;
     static constexpr float MAX_BALL_SPEED = 1000.0f;
+    
+    // Method to detect and set touch device capability
+    void detectTouchDevice();
 };
 
 #endif // GAME_H

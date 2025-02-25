@@ -67,6 +67,9 @@ int main() {
         if (IsWindowResized()) {
             Game::SpeedConfig::updateVirtualDimensions();
             gameInstance->updateCamera();
+            
+            // Force touch device detection in case of platform changes
+            gameInstance->detectTouchDevice();
         }
         game.run();
     }
